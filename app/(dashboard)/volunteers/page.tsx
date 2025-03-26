@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -15,6 +15,10 @@ import { Badge } from "@/components/ui/badge"
 import { CancelVolunteerForm } from "@/components/cancel-volunteer-form"
 import { ExcelUpload } from "@/components/excel-upload"
 import { useToast } from "@/components/ui/use-toast"
+import { RegisterVolunteerForm } from "@/components/register-volunteer-form"
+import { cn } from "@/lib/utils"
+import { SearchBar } from "@/components/search-bar"
+import { useDebounce } from "@/hooks/use-debounce"
 
 type ApiVolunteer = {
   id: number
@@ -50,6 +54,8 @@ export default function VolunteersPage() {
   const [dataSource, setDataSource] = useState<"api" | "supabase">("supabase")
   const [apiToken, setApiToken] = useState<string | null>(null)
   const [apiAvailable, setApiAvailable] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const debouncedSearch = useDebounce(searchQuery)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -152,7 +158,11 @@ export default function VolunteersPage() {
     }
   }
 
-  const getStatusBadge = (status: string | boolean | undefined) => {
+  const getStatusBadge = (status: string | boolean | undefined, isRegistered: boolean) => {
+    if (isRegistered) {
+      return <Badge className="bg-blue-500">Registered</Badge>
+    }
+
     if (typeof status === "boolean") {
       return status ? <Badge variant="destructive">Cancelled</Badge> : <Badge className="bg-green-500">Active</Badge>
     }
@@ -171,6 +181,22 @@ export default function VolunteersPage() {
     }
   }
 
+  // Filter volunteers based on search query
+  const filteredVolunteers = useMemo(() => {
+    return dbVolunteers.filter((volunteer) => {
+      const searchFields = [
+        volunteer.sai_connect_id,
+        volunteer.full_name,
+        volunteer.mobile_number,
+        volunteer.sss_district,
+        volunteer.samiti_or_bhajan_mandli,
+      ].map(field => (field || "").toString().toLowerCase())
+
+      const query = debouncedSearch.toLowerCase()
+      return searchFields.some(field => field.includes(query))
+    })
+  }, [dbVolunteers, debouncedSearch])
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -181,18 +207,24 @@ export default function VolunteersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Volunteers</h1>
-          <p className="text-muted-foreground">Manage your volunteers</p>
-        </div>
-        <Button asChild>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold tracking-tight">Volunteers</h1>
+        <div className="flex space-x-2">
           <Link href="/volunteers/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Volunteer
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Volunteer
+            </Button>
           </Link>
-        </Button>
+          <RegisterVolunteerForm onRegister={fetchData} />
+        </div>
       </div>
+
+      <SearchBar 
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="max-w-md"
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-4">
@@ -236,7 +268,7 @@ export default function VolunteersPage() {
                     <TableRow key={volunteer.id}>
                       <TableCell>{volunteer.id}</TableCell>
                       <TableCell>{volunteer.name}</TableCell>
-                      <TableCell>{getStatusBadge(volunteer.status)}</TableCell>
+                      <TableCell>{getStatusBadge(volunteer.status, false)}</TableCell>
                       <TableCell>{volunteer.details}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -280,22 +312,33 @@ export default function VolunteersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dbVolunteers.length === 0 ? (
+                {filteredVolunteers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center">
-                      No volunteers found
+                      {searchQuery ? "No volunteers found matching your search" : "No volunteers found"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  dbVolunteers.map((volunteer) => (
+                  filteredVolunteers.map((volunteer) => (
                     <TableRow
                       key={volunteer.sai_connect_id}
-                      className={volunteer.is_cancelled ? "bg-red-50 dark:bg-red-950/20" : ""}
+                      className={cn({
+                        "bg-red-50 dark:bg-red-950/20": volunteer.is_cancelled,
+                        "bg-blue-50 dark:bg-blue-950/20": volunteer.registered_volunteers
+                      })}
                     >
                       <TableCell>{volunteer.sai_connect_id}</TableCell>
                       <TableCell>{volunteer.full_name}</TableCell>
                       <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
-                      <TableCell>{getStatusBadge(volunteer.is_cancelled)}</TableCell>
+                      <TableCell>
+                        {volunteer.is_cancelled ? (
+                          <Badge variant="destructive">Cancelled</Badge>
+                        ) : volunteer.registered_volunteers ? (
+                          <Badge className="bg-blue-500">Registered</Badge>
+                        ) : (
+                          <Badge className="bg-green-500">Active</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{volunteer.sss_district || "N/A"}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

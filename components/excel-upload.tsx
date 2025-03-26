@@ -13,6 +13,71 @@ import * as XLSX from "xlsx"
 import { supabase } from "@/lib/supabase"
 import { Progress } from "@/components/ui/progress"
 
+interface VolunteerData {
+  serial_number?: string;
+  full_name?: string;
+  age?: number | null;
+  aadhar_number?: string;
+  sai_connect_id?: string;
+  sevadal_training_certificate: boolean;
+  mobile_number?: string;
+  sss_district?: string;
+  samiti_or_bhajan_mandli?: string;
+  education?: string;
+  special_qualifications?: string;
+  past_prashanti_service: boolean;
+  last_service_location?: string;
+  other_service_location?: string;
+  prashanti_arrival?: string | null;
+  prashanti_departure?: string | null;
+  duty_point?: string;
+  is_cancelled: boolean;
+  [key: string]: any; // Allow dynamic string keys
+}
+
+// Header mapping for both English and Hindi
+const headerMapping: { [key: string]: string } = {
+  // English headers
+  "serial number": "serial_number",
+  "full name": "full_name",
+  "age": "age",
+  "aadhar number": "aadhar_number",
+  "sai connect id": "sai_connect_id",
+  "sevadal training certificate": "sevadal_training_certificate",
+  "mobile number": "mobile_number",
+  "sss district": "sss_district",
+  "samiti or bhajan mandli": "samiti_or_bhajan_mandli",
+  "education": "education",
+  "special qualifications": "special_qualifications",
+  "past prashanti service": "past_prashanti_service",
+  "last service location": "last_service_location",
+  "other service location": "other_service_location",
+  "prashanti arrival": "prashanti_arrival",
+  "prashanti departure": "prashanti_departure",
+  "duty point": "duty_point",
+  "is cancelled": "is_cancelled",
+  
+  // Hindi headers (add your Hindi translations here)
+  "क्रम संख्या": "serial_number",
+  "पूरा नाम": "full_name",
+  "आयु": "age",
+  "आधार नंबर": "aadhar_number",
+  "साई कनेक्ट आईडी": "sai_connect_id",
+  "सेवादल प्रशिक्षण प्रमाणपत्र": "sevadal_training_certificate",
+  "मोबाइल नंबर": "mobile_number",
+  "एसएसएस जिला": "sss_district",
+  "समिति या भजन मंडली": "samiti_or_bhajan_mandli",
+  "शिक्षा": "education",
+  "विशेष योग्यता": "special_qualifications",
+  "पूर्व प्रशांति सेवा": "past_prashanti_service",
+  "अंतिम सेवा स्थान": "last_service_location",
+  "अन्य सेवा स्थान": "other_service_location",
+  "प्रशांति आगमन": "prashanti_arrival",
+  "प्रशांति प्रस्थान": "prashanti_departure",
+  "ड्यूटी पॉइंट": "duty_point",
+  "रद्द किया गया": "is_cancelled",
+}
+
 export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
   const [file, setFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -25,6 +90,20 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
     }
   }
 
+  const normalizeHeader = (header: string): string => {
+    const normalized = header.toLowerCase().trim()
+    return headerMapping[normalized] || normalized
+  }
+
+  const parseBoolean = (value: any): boolean => {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      const lowered = value.toLowerCase().trim()
+      return lowered === 'yes' || lowered === 'true' || lowered === 'हाँ' || lowered === '1'
+    }
+    return Boolean(value)
+  }
+
   const handleUpload = async () => {
     if (!file) {
       toast({
@@ -35,10 +114,11 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
       return
     }
 
-    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+    const fileExt = file.name.split('.').pop()?.toLowerCase()
+    if (!['xlsx', 'xls', 'csv'].includes(fileExt || '')) {
       toast({
         title: "Invalid file format",
-        description: "Please upload an Excel file (.xlsx or .xls).",
+        description: "Please upload an Excel or CSV file (.xlsx, .xls, or .csv).",
         variant: "destructive",
       })
       return
@@ -48,55 +128,76 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
     setProgress(10)
 
     try {
-      // Read the Excel file
+      // Read the file
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data)
       const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+
+      if (rawData.length < 2) {
+        throw new Error("File is empty or contains only headers")
+      }
+
+      // Get and normalize headers
+      const headers = (rawData[0] as string[]).map(header => normalizeHeader(header))
+      const rows = rawData.slice(1) as unknown[][]
 
       setProgress(30)
 
-      if (jsonData.length === 0) {
-        throw new Error("No data found in the Excel file")
-      }
-
-      // Map Excel data to our database schema
-      const volunteers = jsonData.map((row: any) => {
-        return {
-          serial_number: row.serial_number?.toString() || row.SerialNumber?.toString() || null,
-          full_name: row.full_name || row.FullName || row.Name || "",
-          age: row.age || row.Age ? Number.parseInt(row.age || row.Age) : null,
-          aadhar_number: row.aadhar_number?.toString() || row.AadharNumber?.toString() || null,
-          sevadal_training_certificate: Boolean(row.sevadal_training_certificate || row.SevadalTraining || false),
-          mobile_number: row.mobile_number?.toString() || row.MobileNumber?.toString() || null,
-          sss_district: row.sss_district || row.SSSDistrict || row.District || null,
-          samiti_or_bhajan_mandli: row.samiti_or_bhajan_mandli || row.Samiti || row.BhajanMandli || null,
-          education: row.education || row.Education || null,
-          special_qualifications: row.special_qualifications || row.SpecialQualifications || row.Qualifications || null,
-          past_prashanti_service: Boolean(row.past_prashanti_service || row.PastService || false),
-          last_service_location: row.last_service_location || row.LastServiceLocation || null,
-          other_service_location: row.other_service_location || row.OtherServiceLocation || null,
-          prashanti_arrival: row.prashanti_arrival || row.PrashantiArrival || null,
-          prashanti_departure: row.prashanti_departure || row.PrashantiDeparture || null,
-          duty_point: row.duty_point || row.DutyPoint || null,
-          is_cancelled: Boolean(row.is_cancelled || row.IsCancelled || false),
+      // Map data to our schema
+      const volunteers = rows.map((row) => {
+        const volunteer: Partial<VolunteerData> = {
+          sevadal_training_certificate: false,
+          past_prashanti_service: false,
+          is_cancelled: false
         }
-      })
+        headers.forEach((header: string, index) => {
+          if (row[index] !== undefined && row[index] !== null) {
+            switch (header) {
+              case 'age':
+                volunteer.age = parseInt(String(row[index])) || null
+                break
+              case 'sevadal_training_certificate':
+              case 'past_prashanti_service':
+              case 'is_cancelled':
+                (volunteer as any)[header] = parseBoolean(row[index])
+                break
+              case 'prashanti_arrival':
+              case 'prashanti_departure':
+                const dateValue = XLSX.SSF.parse_date_code(Number(row[index]))
+                if (dateValue) {
+                  (volunteer as any)[header] = new Date(dateValue.y, dateValue.m - 1, dateValue.d).toISOString()
+                } else {
+                  (volunteer as any)[header] = null
+                }
+                break
+              default:
+                (volunteer as any)[header] = String(row[index]).trim()
+            }
+          }
+        })
+        return volunteer
+      }).filter(v => Object.keys(v).length > 0) // Remove empty rows
 
       setProgress(50)
 
-      // Insert data in batches to avoid timeouts
+      // Insert data in batches
       const batchSize = 50
       const batches = []
-
       for (let i = 0; i < volunteers.length; i += batchSize) {
         batches.push(volunteers.slice(i, i + batchSize))
       }
 
       let completedBatches = 0
-
       for (const batch of batches) {
-        const { error } = await supabase.from("volunteers_volunteers").insert(batch)
+        const { error } = await supabase
+          .from("volunteers_volunteers")
+          .insert(batch.map(volunteer => ({
+            ...volunteer,
+            sevadal_training_certificate: volunteer.sevadal_training_certificate ?? false,
+            past_prashanti_service: volunteer.past_prashanti_service ?? false,
+            is_cancelled: volunteer.is_cancelled ?? false
+          })))
 
         if (error) throw error
 
@@ -111,7 +212,7 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
 
       if (onSuccess) onSuccess()
     } catch (error) {
-      console.error("Error uploading Excel file:", error)
+      console.error("Error uploading file:", error)
       toast({
         title: "Upload failed",
         description: error instanceof Error ? error.message : "An unexpected error occurred.",
@@ -121,6 +222,9 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
       setIsUploading(false)
       setProgress(0)
       setFile(null)
+      // Reset the file input
+      const fileInput = document.getElementById('excel-file') as HTMLInputElement
+      if (fileInput) fileInput.value = ''
     }
   }
 
@@ -128,12 +232,18 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
     <Card>
       <CardHeader>
         <CardTitle>Upload Volunteer Data</CardTitle>
-        <CardDescription>Upload volunteer data from an Excel file (.xlsx or .xls)</CardDescription>
+        <CardDescription>Upload volunteer data from Excel (.xlsx, .xls) or CSV files</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="excel-file">Excel File</Label>
-          <Input id="excel-file" type="file" accept=".xlsx,.xls" onChange={handleFileChange} disabled={isUploading} />
+          <Label htmlFor="excel-file">Select File</Label>
+          <Input 
+            id="excel-file" 
+            type="file" 
+            accept=".xlsx,.xls,.csv" 
+            onChange={handleFileChange} 
+            disabled={isUploading} 
+          />
         </div>
         {isUploading && (
           <div className="space-y-2">
