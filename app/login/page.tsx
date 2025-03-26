@@ -38,7 +38,7 @@ export default function LoginPage() {
       if (error) {
         toast({
           title: "Login failed",
-          description: error.message || "Please check your credentials and try again.",
+          description: "Invalid email or password.",
           variant: "destructive",
         })
       } else {
@@ -68,11 +68,15 @@ export default function LoginPage() {
     )
   }
 
+  if (user) {
+    return null // Will redirect in useEffect
+  }
+
   return (
     <div className="flex h-screen items-center justify-center bg-muted/40">
       <Card className="w-[350px]">
         <CardHeader>
-          <CardTitle>Volunteer Management</CardTitle>
+          <CardTitle>Admin Login</CardTitle>
           <CardDescription>Sign in to access the volunteer management system</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>

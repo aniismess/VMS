@@ -1,31 +1,46 @@
 import { supabase } from "./supabase"
 
-export type VolunteerData = {
+export type RegisteredVolunteer = {
   sai_connect_id: string
-  serial_number?: string
-  full_name: string
-  age?: number
-  aadhar_number?: string
+  batch: string | null
+  service_location: string | null
+}
+
+export type VolunteerData = {
+  serial_number: string | null
+  full_name: string | null
+  age: number | null
+  aadhar_number: string | null
+  sai_connect_id: string
   sevadal_training_certificate: boolean
-  mobile_number?: string
-  sss_district?: string
-  samiti_or_bhajan_mandli?: string
-  education?: string
-  special_qualifications?: string
+  mobile_number: string | null
+  sss_district: string | null
+  gender: string | null
+  samiti_or_bhajan_mandli: string | null
+  education: string | null
+  special_qualifications: string | null
   past_prashanti_service: boolean
-  last_service_location?: string
-  other_service_location?: string
-  prashanti_arrival?: string
-  prashanti_departure?: string
-  duty_point?: string
-  is_cancelled?: boolean
-  created_by_id?: number
+  last_service_location: string | null
+  other_service_location: string | null
+  prashanti_arrival: string | null
+  prashanti_departure: string | null
+  duty_point: string | null
+  is_cancelled: boolean
+  created_by_id?: number | null
+  registered_volunteers?: RegisteredVolunteer | null
 }
 
 export async function getVolunteers(): Promise<VolunteerData[]> {
   const { data, error } = await supabase
     .from("volunteers_volunteers")
-    .select("*")
+    .select(`
+      *,
+      registered_volunteers!left (
+        sai_connect_id,
+        batch,
+        service_location
+      )
+    `)
     .order("sai_connect_id", { ascending: false })
 
   if (error) {
@@ -37,7 +52,10 @@ export async function getVolunteers(): Promise<VolunteerData[]> {
 }
 
 export async function getVolunteerStats() {
-  const { data, error } = await supabase.from("volunteers_volunteers").select("is_cancelled")
+  const [{ data: volunteers, error }, { count: registeredCount }] = await Promise.all([
+    supabase.from("volunteers_volunteers").select("is_cancelled"),
+    supabase.from("registered_volunteers").select("*", { count: 'exact' })
+  ])
 
   if (error) {
     console.error("Error fetching volunteer stats:", error)
@@ -45,22 +63,27 @@ export async function getVolunteerStats() {
       totalVolunteers: 0,
       coming: 0,
       notComing: 0,
+      registered: 0
     }
   }
 
-  const totalVolunteers = data.length
-  const coming = data.filter((v) => v.is_cancelled !== true).length
-  const notComing = data.filter((v) => v.is_cancelled === true).length
+  const totalVolunteers = volunteers?.length || 0
+  const coming = volunteers?.filter((v) => !v.is_cancelled).length || 0
+  const notComing = volunteers?.filter((v) => v.is_cancelled).length || 0
 
   return {
     totalVolunteers,
     coming,
     notComing,
+    registered: registeredCount || 0
   }
 }
 
-export async function createVolunteerInDb(volunteer: Omit<VolunteerData, "sai_connect_id">) {
-  const { data, error } = await supabase.from("volunteers_volunteers").insert([volunteer]).select()
+export async function createVolunteerInDb(volunteer: VolunteerData) {
+  const { data, error } = await supabase
+    .from("volunteers_volunteers")
+    .insert([volunteer])
+    .select()
 
   if (error) {
     console.error("Error creating volunteer:", error)
