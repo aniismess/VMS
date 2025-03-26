@@ -90,7 +90,7 @@ export default function NewVolunteerPage() {
         mobile_number: mobileNumber,
         aadhar_number: aadharNumber,
         sss_district: sssDistrict,
-        gender: gender,
+        Gender: gender,
         samiti_or_bhajan_mandli: samiti,
         education: education,
         special_qualifications: qualifications,
@@ -105,15 +105,17 @@ export default function NewVolunteerPage() {
         prashanti_departure: null
       })
       toast({
-        title: "Success",
-        description: "Volunteer created successfully.",
+        title: "Success!",
+        description: `Volunteer ${fullName} has been added successfully.`,
       })
+      // Add a small delay to show the success state
+      await new Promise(resolve => setTimeout(resolve, 1000))
       router.push("/volunteers")
     } catch (error) {
       console.error("Error creating volunteer:", error)
       toast({
         title: "Error",
-        description: "Failed to create volunteer.",
+        description: "Failed to create volunteer. Please check the SAI Connect ID and try again.",
         variant: "destructive",
       })
     } finally {
@@ -140,11 +142,17 @@ export default function NewVolunteerPage() {
                 <Label htmlFor="sai-connect-id">SAI Connect ID</Label>
                 <Input
                   id="sai-connect-id"
-                  placeholder="Enter SAI Connect ID"
+                  placeholder="Enter 6-digit SAI Connect ID"
                   value={saiConnectId}
-                  onChange={(e) => setSaiConnectId(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6)
+                    setSaiConnectId(value)
+                  }}
+                  maxLength={6}
+                  pattern="[0-9]{6}"
                   required
                 />
+                <p className="text-sm text-muted-foreground">Must be 6 digits only</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="full-name">Full Name</Label>
@@ -163,26 +171,43 @@ export default function NewVolunteerPage() {
                   type="number"
                   placeholder="Enter age"
                   value={age}
-                  onChange={(e) => setAge(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+                    setAge(value)
+                  }}
+                  min="1"
+                  max="99"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mobile">Mobile Number</Label>
                 <Input
                   id="mobile"
-                  placeholder="Enter mobile number"
+                  placeholder="Enter 10-digit mobile number"
                   value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
+                    setMobileNumber(value)
+                  }}
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                 />
+                <p className="text-sm text-muted-foreground">Must be 10 digits only</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="aadhar">Aadhar Number</Label>
                 <Input
                   id="aadhar"
-                  placeholder="Enter Aadhar number"
+                  placeholder="Enter 12-digit Aadhar number"
                   value={aadharNumber}
-                  onChange={(e) => setAadharNumber(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 12)
+                    setAadharNumber(value)
+                  }}
+                  maxLength={12}
+                  pattern="[0-9]{12}"
                 />
+                <p className="text-sm text-muted-foreground">Must be 12 digits only</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="district">SSS District</Label>

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { getDashboardData } from "@/lib/api-service"
 import { getVolunteerStats, getVolunteers } from "@/lib/supabase-service"
-import { Loader2, Users, UserCheck, UserX, UserPlus } from "lucide-react"
+import { Loader2, Users, UserCheck, UserX, UserPlus, Download } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -14,10 +14,14 @@ import { cn } from "@/lib/utils"
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from "@/lib/supabase"
 import { SearchBar } from "@/components/search-bar"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import * as XLSX from "xlsx"
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [dbStats, setDbStats] = useState({
     totalVolunteers: 0,
@@ -27,6 +31,9 @@ export default function DashboardPage() {
   const [recentVolunteers, setRecentVolunteers] = useState<any[]>([])
   const [registeredCount, setRegisteredCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
+  const [activeSearch, setActiveSearch] = useState("")
+  const [registeredSearch, setRegisteredSearch] = useState("")
+  const [cancelledSearch, setCancelledSearch] = useState("")
 
   useEffect(() => {
     if (!user) return // Don't fetch data if not authenticated
@@ -37,12 +44,12 @@ export default function DashboardPage() {
         // Fetch data from Supabase
         const [statsResult, volunteersResult, { count }] = await Promise.all([
           getVolunteerStats(),
-          getVolunteers(),
+          getVolunteers(), // This now returns all volunteers
           supabase.from('registered_volunteers').select('*', { count: 'exact', head: true })
         ])
 
         setDbStats(statsResult)
-        setRecentVolunteers(volunteersResult.slice(0, 5))
+        setRecentVolunteers(volunteersResult) // Store all volunteers
         setRegisteredCount(count || 0)
       } catch (error) {
         console.error("Error fetching Supabase data:", error)
@@ -63,11 +70,17 @@ export default function DashboardPage() {
       .channel('volunteers-changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'volunteers_volunteers' },
-        () => fetchData()
+        () => {
+          console.log('Volunteers table changed, refreshing data...')
+          fetchData()
+        }
       )
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'registered_volunteers' },
-        () => fetchData()
+        () => {
+          console.log('Registered volunteers table changed, refreshing data...')
+          fetchData()
+        }
       )
       .subscribe()
 
@@ -90,6 +103,47 @@ export default function DashboardPage() {
       return searchFields.some(field => field.includes(query))
     })
   }, [recentVolunteers, searchQuery])
+
+  const handleVolunteerClick = (saiConnectId: string) => {
+    router.push(`/volunteers/${saiConnectId}`)
+  }
+
+  const downloadVolunteers = (volunteers: any[], type: 'active' | 'registered' | 'cancelled') => {
+    // Create a new workbook
+    const wb = XLSX.utils.book_new()
+    
+    // Map the data to include all relevant fields
+    const data = volunteers.map(volunteer => ({
+      'Sai Connect ID': volunteer.sai_connect_id,
+      'Full Name': volunteer.full_name || '',
+      'Mobile Number': volunteer.mobile_number || '',
+      'SSS District': volunteer.sss_district || '',
+      'Age': volunteer.age || '',
+      'Aadhar Number': volunteer.aadhar_number || '',
+      'Gender': volunteer.gender || '',
+      'Samiti/Bhajan Mandli': volunteer.samiti_or_bhajan_mandli || '',
+      'Education': volunteer.education || '',
+      'Special Qualifications': volunteer.special_qualifications || '',
+      'Sevadal Training': volunteer.sevadal_training_certificate ? 'Yes' : 'No',
+      'Past Prashanti Service': volunteer.past_prashanti_service ? 'Yes' : 'No',
+      'Last Service Location': volunteer.last_service_location || '',
+      'Other Service Location': volunteer.other_service_location || '',
+      'Duty Point': volunteer.duty_point || '',
+      ...(volunteer.registered_volunteers ? {
+        'Batch': volunteer.registered_volunteers.batch || '',
+        'Service Location': volunteer.registered_volunteers.service_location || ''
+      } : {})
+    }))
+
+    // Create a worksheet
+    const ws = XLSX.utils.json_to_sheet(data)
+    
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, `${type}-volunteers`)
+    
+    // Generate the Excel file
+    XLSX.writeFile(wb, `${type}-volunteers-${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
 
   if (isLoading) {
     return (
@@ -145,62 +199,247 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Recent Volunteers</h2>
-          <SearchBar 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="max-w-xs"
-          />
-        </div>
-
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Active Volunteers */}
         <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-green-500" />
+                Active Volunteers
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/volunteers?status=active')}
+                className="text-sai-orange hover:text-sai-orange-dark"
+              >
+                View All
+              </Button>
+            </div>
+            <div className="mt-2">
+              <SearchBar 
+                value={activeSearch}
+                onChange={(e) => setActiveSearch(e.target.value)}
+                placeholder="Search active volunteers..."
+                className="w-full"
+              />
+            </div>
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Mobile</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>District</TableHead>
+                  <TableHead>Sai Connect ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRecentVolunteers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center">
-                      {searchQuery ? "No volunteers found matching your search" : "No volunteers found"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredRecentVolunteers.map((volunteer) => (
-                    <TableRow
+                {recentVolunteers
+                  .filter(volunteer => {
+                    const matchesSearch = !activeSearch || 
+                      volunteer.full_name?.toLowerCase().includes(activeSearch.toLowerCase()) ||
+                      volunteer.mobile_number?.toLowerCase().includes(activeSearch.toLowerCase()) ||
+                      volunteer.sai_connect_id?.toLowerCase().includes(activeSearch.toLowerCase())
+                    return !volunteer.is_cancelled && !volunteer.registered_volunteers && matchesSearch
+                  })
+                  .slice(0, 5)
+                  .map((volunteer) => (
+                    <TableRow 
                       key={volunteer.sai_connect_id}
-                      className={cn({
-                        "bg-red-50 dark:bg-red-950/20": volunteer.is_cancelled,
-                        "bg-blue-50 dark:bg-blue-950/20": volunteer.registered_volunteers !== null
-                      })}
+                      className="cursor-pointer hover:bg-accent"
+                      onClick={() => router.push(`/volunteers/${volunteer.sai_connect_id}`)}
                     >
-                      <TableCell>{volunteer.sai_connect_id}</TableCell>
-                      <TableCell>{volunteer.full_name}</TableCell>
+                      <TableCell className="font-medium">{volunteer.full_name}</TableCell>
                       <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
-                      <TableCell>
-                        {volunteer.is_cancelled ? (
-                          <Badge variant="destructive">Cancelled</Badge>
-                        ) : volunteer.registered_volunteers ? (
-                          <Badge className="bg-blue-500">Registered</Badge>
-                        ) : (
-                          <Badge className="bg-green-500">Active</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{volunteer.sss_district || "N/A"}</TableCell>
+                      <TableCell>{volunteer.sai_connect_id}</TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ))}
               </TableBody>
             </Table>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const activeVolunteers = recentVolunteers.filter(volunteer => {
+                    const matchesSearch = !activeSearch || 
+                      volunteer.full_name?.toLowerCase().includes(activeSearch.toLowerCase()) ||
+                      volunteer.mobile_number?.toLowerCase().includes(activeSearch.toLowerCase()) ||
+                      volunteer.sai_connect_id?.toLowerCase().includes(activeSearch.toLowerCase())
+                    return !volunteer.is_cancelled && !volunteer.registered_volunteers && matchesSearch
+                  })
+                  downloadVolunteers(activeVolunteers, 'active')
+                }}
+                className="text-sai-orange hover:text-sai-orange-dark"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download Active
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Registered Volunteers */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-blue-500" />
+                Registered Volunteers
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/volunteers?status=registered')}
+                className="text-sai-orange hover:text-sai-orange-dark"
+              >
+                View All
+              </Button>
+            </div>
+            <div className="mt-2">
+              <SearchBar 
+                value={registeredSearch}
+                onChange={(e) => setRegisteredSearch(e.target.value)}
+                placeholder="Search registered volunteers..."
+                className="w-full"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Mobile</TableHead>
+                  <TableHead>Sai Connect ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentVolunteers
+                  .filter(volunteer => {
+                    const matchesSearch = !registeredSearch || 
+                      volunteer.full_name?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
+                      volunteer.mobile_number?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
+                      volunteer.sai_connect_id?.toLowerCase().includes(registeredSearch.toLowerCase())
+                    return volunteer.registered_volunteers && matchesSearch
+                  })
+                  .slice(0, 5)
+                  .map((volunteer) => (
+                    <TableRow 
+                      key={volunteer.sai_connect_id}
+                      className="cursor-pointer hover:bg-accent"
+                      onClick={() => router.push(`/volunteers/${volunteer.sai_connect_id}`)}
+                    >
+                      <TableCell className="font-medium">{volunteer.full_name}</TableCell>
+                      <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
+                      <TableCell>{volunteer.sai_connect_id}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const registeredVolunteers = recentVolunteers.filter(volunteer => {
+                    const matchesSearch = !registeredSearch || 
+                      volunteer.full_name?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
+                      volunteer.mobile_number?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
+                      volunteer.sai_connect_id?.toLowerCase().includes(registeredSearch.toLowerCase())
+                    return volunteer.registered_volunteers && matchesSearch
+                  })
+                  downloadVolunteers(registeredVolunteers, 'registered')
+                }}
+                className="text-sai-orange hover:text-sai-orange-dark"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download Registered
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cancelled Volunteers */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <UserX className="h-5 w-5 text-red-500" />
+                Cancelled Volunteers
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/volunteers?status=cancelled')}
+                className="text-sai-orange hover:text-sai-orange-dark"
+              >
+                View All
+              </Button>
+            </div>
+            <div className="mt-2">
+              <SearchBar 
+                value={cancelledSearch}
+                onChange={(e) => setCancelledSearch(e.target.value)}
+                placeholder="Search cancelled volunteers..."
+                className="w-full"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Mobile</TableHead>
+                  <TableHead>Sai Connect ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentVolunteers
+                  .filter(volunteer => {
+                    const matchesSearch = !cancelledSearch || 
+                      volunteer.full_name?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
+                      volunteer.mobile_number?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
+                      volunteer.sai_connect_id?.toLowerCase().includes(cancelledSearch.toLowerCase())
+                    return volunteer.is_cancelled && matchesSearch
+                  })
+                  .slice(0, 5)
+                  .map((volunteer) => (
+                    <TableRow 
+                      key={volunteer.sai_connect_id}
+                      className="cursor-pointer hover:bg-accent"
+                      onClick={() => router.push(`/volunteers/${volunteer.sai_connect_id}`)}
+                    >
+                      <TableCell className="font-medium">{volunteer.full_name}</TableCell>
+                      <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
+                      <TableCell>{volunteer.sai_connect_id}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const cancelledVolunteers = recentVolunteers.filter(volunteer => {
+                    const matchesSearch = !cancelledSearch || 
+                      volunteer.full_name?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
+                      volunteer.mobile_number?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
+                      volunteer.sai_connect_id?.toLowerCase().includes(cancelledSearch.toLowerCase())
+                    return volunteer.is_cancelled && matchesSearch
+                  })
+                  downloadVolunteers(cancelledVolunteers, 'cancelled')
+                }}
+                className="text-sai-orange hover:text-sai-orange-dark"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download Cancelled
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
