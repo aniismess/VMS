@@ -6,11 +6,37 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    "*.{js,ts,jsx,tsx,mdx}"
+    "*.{js,ts,jsx,tsx,mdx}",
+    './src/**/*.{ts,tsx}',
   ],
   theme: {
   	extend: {
+  		container: {
+  			center: true,
+  			padding: "2rem",
+  			screens: {
+  				"2xl": "1400px",
+  			},
+  		},
+  		fontFamily: {
+  			hindi: ['var(--font-hindi)'],
+  			playfair: ['var(--font-playfair)'],
+  		},
   		colors: {
+  			sai: {
+  				orange: '#FF6B00',
+  				'orange-light': '#FF8533',
+  				'orange-dark': '#CC5500',
+  				blue: '#1E88E5',
+  				'blue-light': '#64B5F6',
+  				'blue-dark': '#1565C0',
+  				green: '#4CAF50',
+  				'green-light': '#81C784',
+  				'green-dark': '#388E3C',
+  				pink: '#E91E63',
+  				'pink-light': '#F48FB1',
+  				'pink-dark': '#C2185B',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -61,6 +87,9 @@ const config: Config = {
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
   			}
+  		},
+  		backgroundImage: {
+  			'sai-gradient': 'linear-gradient(135deg, #FF6B00 0%, #FF8533 100%)',
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
