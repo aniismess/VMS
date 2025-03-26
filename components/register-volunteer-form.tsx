@@ -144,11 +144,17 @@ export function RegisterVolunteerForm({ onRegister }: RegisterVolunteerFormProps
               <Label htmlFor="sai-connect-id">Sai Connect ID</Label>
               <Input
                 id="sai-connect-id"
+                placeholder="Enter 6-digit SAI Connect ID"
                 value={saiConnectId}
-                onChange={(e) => setSaiConnectId(e.target.value)}
-                placeholder="Enter Sai Connect ID"
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6)
+                  setSaiConnectId(value)
+                }}
+                maxLength={6}
+                pattern="[0-9]{6}"
                 required
               />
+              <p className="text-sm text-muted-foreground">Must be 6 digits only</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="batch">Batch</Label>

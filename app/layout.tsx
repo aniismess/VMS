@@ -3,11 +3,8 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Playfair_Display } from "next/font/google"
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { AuthProvider } from "@/contexts/auth-context"
-import { ToastProvider } from "@/contexts/toast-context"
+import { Providers } from "./providers"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
@@ -15,6 +12,15 @@ const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfa
 export const metadata: Metadata = {
   title: "Sri Sathya Sai Seva Organisation",
   description: "Volunteer Management System",
+  icons: {
+    icon: [
+      {
+        url: "https://ssssompcg.org/assets/images/sd5-464x464.jpg",
+        sizes: "32x32",
+        type: "image/jpg"
+      }
+    ]
+  }
 }
 
 export default function RootLayout({
@@ -26,19 +32,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${playfair.variable} font-sans`} suppressHydrationWarning>
         <ErrorBoundary>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <AuthProvider>
-              <ToastProvider>
-                {children}
-                <Toaster />
-              </ToastProvider>
-            </AuthProvider>
-          </ThemeProvider>
+          <Providers>
+            {children}
+          </Providers>
         </ErrorBoundary>
       </body>
     </html>

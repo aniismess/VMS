@@ -26,8 +26,8 @@ export type VolunteerData = {
   prashanti_departure: string | null
   duty_point: string | null
   is_cancelled: boolean
-  created_by_id?: number | null
-  registered_volunteers?: RegisteredVolunteer | null
+  created_by_id: string | null
+  registered_volunteers: RegisteredVolunteer | null
 }
 
 export async function getVolunteers(): Promise<VolunteerData[]> {

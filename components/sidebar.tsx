@@ -45,31 +45,33 @@ export function Sidebar() {
     <div className="sticky top-0 z-50 w-full">
       {/* Header with Sai Organisation branding */}
       <div className="bg-sai-gradient text-white">
-        <div className="container mx-auto px-4 py-2">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Image
-                src="/sai-logo.png"
-                alt="Sri Sathya Sai Seva Organisation Logo"
-                width={40}
-                height={40}
-                className="rounded-full"
-              />
+            <div className="flex items-center space-x-6">
+              <div className="relative w-16 h-16 bg-white rounded-full overflow-hidden">
+                <Image
+                  src="https://ssssompcg.org/assets/images/sd5-464x464.jpg"
+                  alt="Sri Sathya Sai Logo"
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
               <div className="flex flex-col">
-                <h1 className="text-lg font-bold font-playfair">Sri Sathya Sai Seva Organisations</h1>
-                <p className="text-sm opacity-90">Love All Serve All - Make a Difference</p>
+                <h1 className="text-2xl font-bold font-playfair">Sri Sathya Sai Seva Organisations</h1>
+                <p className="text-base opacity-90">Love All Serve All - Make a Difference</p>
               </div>
             </div>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-                  <Menu className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-sai-orange border border-white/20 hover:border-sai-orange/50 transition-colors">
+                  <Menu className="h-6 w-6" />
                   <span className="sr-only">Toggle Menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] sm:w-[320px]">
+              <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-white border-r border-sai-orange/20">
                 <SheetHeader>
-                  <SheetTitle className="text-lg font-bold">
+                  <SheetTitle className="text-xl font-bold">
                     <div className="flex flex-col">
                       <span className="font-playfair">Volunteer Management</span>
                       <span className="text-sm font-medium font-hindi text-muted-foreground">स्वयंसेवक प्रबंधन</span>
@@ -92,12 +94,12 @@ export function Sidebar() {
                         href={item.href}
                         onClick={() => setIsOpen(false)}
                         className={cn(
-                          "flex flex-col gap-0.5 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                          "flex flex-col gap-0.5 rounded-lg px-3 py-2 text-base font-medium hover:bg-accent hover:text-accent-foreground",
                           pathname === item.href ? "bg-accent text-accent-foreground" : "transparent",
                         )}
                       >
                         <div className="flex items-center gap-3">
-                          <item.icon className="h-4 w-4" />
+                          <item.icon className="h-5 w-5" />
                           <div className="flex flex-col">
                             <span>{item.title}</span>
                             <span className="text-sm font-medium font-hindi text-muted-foreground">{item.hindiTitle}</span>
@@ -123,19 +125,19 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Menu */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="border-b bg-white">
         <div className="container mx-auto px-4">
-          <nav className="flex space-x-6 py-2">
+          <nav className="flex space-x-8 py-3">
             {navItems.map((item, index) => (
               <Link
                 key={index}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2 text-sm font-medium transition-colors hover:text-sai-orange",
+                  "flex items-center gap-2 text-base font-medium transition-colors hover:text-sai-orange",
                   pathname === item.href ? "text-sai-orange" : "text-muted-foreground"
                 )}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-5 w-5" />
                 <span>{item.title}</span>
               </Link>
             ))}
