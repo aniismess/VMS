@@ -3,37 +3,65 @@ import { supabase } from '@/lib/supabase'
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
+    const { email, password } = body
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
+      return new NextResponse(
+        JSON.stringify({ error: 'Email and password are required' }),
+        { 
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        }
       )
     }
 
-    const { user, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 401 }
+      console.error('Sign in error:', error)
+      return new NextResponse(
+        JSON.stringify({ error: error.message }),
+        { 
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    if (!data?.user) {
+      console.error('No user data returned from Supabase')
+      return new NextResponse(
+        JSON.stringify({ error: 'Authentication failed' }),
+        { 
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
       )
     }
 
     // Don't send sensitive user data in the response
-    return NextResponse.json({ 
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email
+    return new NextResponse(
+      JSON.stringify({ 
+        success: true,
+        user: {
+          id: data.user.id,
+          email: data.user.email
+        }
+      }),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
       }
-    })
+    )
   } catch (error) {
     console.error('Sign in error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error' }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     )
   }
 } 
