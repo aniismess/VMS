@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, UserPlus, LogOut, Menu } from "lucide-react"
+import { LayoutDashboard, Users, UserPlus, LogOut, Menu, Sun, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import Image from "next/image"
+import { useTheme } from "next-themes"
 
 const navItems = [
   {
@@ -35,6 +36,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const { logout, user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const handleLogout = async () => {
     await logout()
@@ -44,7 +46,7 @@ export function Sidebar() {
   return (
     <div className="sticky top-0 z-50 w-full">
       {/* Header with Sai Organisation branding */}
-      <div className="bg-sai-gradient text-white shadow-md">
+      <div className="bg-sai-gradient text-white shadow-md dark:bg-gradient-to-r dark:from-gray-800 dark:to-gray-900">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
@@ -62,74 +64,86 @@ export function Sidebar() {
                 <p className="text-base opacity-90 font-medium">Love All Serve All - Make a Difference</p>
               </div>
             </div>
-            <Sheet open={isOpen} onOpenChange={setIsOpen}>
-              <SheetTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white hover:bg-white/10 hover:text-white border border-white/20 hover:border-white/40 transition-all duration-200"
-                >
-                  <Menu className="h-6 w-6" />
-                  <span className="sr-only">Toggle Menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-white border-r border-sai-orange/20">
-                <SheetHeader>
-                  <SheetTitle className="text-xl font-bold">
-                    <div className="flex flex-col">
-                      <span className="font-playfair">Volunteer Management</span>
-                      <span className="text-sm font-medium font-hindi text-muted-foreground">स्वयंसेवक प्रबंधन</span>
-                    </div>
-                  </SheetTitle>
-                </SheetHeader>
-                <div className="flex flex-col h-full py-4">
-                  <div className="px-3 py-2">
-                    {user && (
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="text-white hover:bg-white/10 hover:text-white border border-white/20 hover:border-white/40 transition-all duration-200"
+              >
+                <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <span className="sr-only">Toggle theme</span>
+              </Button>
+              <Sheet open={isOpen} onOpenChange={setIsOpen}>
+                <SheetTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-white hover:bg-white/10 hover:text-white border border-white/20 hover:border-white/40 transition-all duration-200"
+                  >
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle Menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-background border-r border-sai-orange/20">
+                  <SheetHeader>
+                    <SheetTitle className="text-xl font-bold">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium">{user?.email}</span>
-                        <span className="text-sm font-medium font-hindi text-muted-foreground">प्रशासक</span>
+                        <span className="font-playfair">Volunteer Management</span>
+                        <span className="text-sm font-medium font-hindi text-muted-foreground">स्वयंसेवक प्रबंधन</span>
                       </div>
-                    )}
-                  </div>
-                  <nav className="flex-1 space-y-1 px-2">
-                    {navItems.map((item, index) => (
-                      <Link
-                        key={index}
-                        href={item.href}
-                        onClick={() => setIsOpen(false)}
-                        className={cn(
-                          "flex flex-col gap-0.5 rounded-lg px-3 py-2 text-base font-medium transition-all duration-200 hover:bg-sai-orange/10 hover:text-sai-orange",
-                          pathname === item.href 
-                            ? "bg-sai-orange/10 text-sai-orange" 
-                            : "text-muted-foreground"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <item.icon className="h-5 w-5" />
-                          <div className="flex flex-col">
-                            <span>{item.title}</span>
-                            <span className="text-sm font-medium font-hindi text-muted-foreground">{item.hindiTitle}</span>
-                          </div>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="flex flex-col h-full py-4">
+                    <div className="px-3 py-2">
+                      {user && (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{user?.email}</span>
+                          <span className="text-sm font-medium font-hindi text-muted-foreground">प्रशासक</span>
                         </div>
-                      </Link>
-                    ))}
-                  </nav>
-                  <div className="mt-auto p-4">
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start gap-2 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors duration-200" 
-                      onClick={handleLogout}
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <div className="flex flex-col">
-                        <span>Logout</span>
-                        <span className="text-sm font-medium font-hindi text-muted-foreground">लॉग आउट</span>
-                      </div>
-                    </Button>
+                      )}
+                    </div>
+                    <nav className="flex-1 space-y-1 px-2">
+                      {navItems.map((item, index) => (
+                        <Link
+                          key={index}
+                          href={item.href}
+                          onClick={() => setIsOpen(false)}
+                          className={cn(
+                            "flex flex-col gap-0.5 rounded-lg px-3 py-2 text-base font-medium transition-all duration-200 hover:bg-sai-orange/10 hover:text-sai-orange",
+                            pathname === item.href 
+                              ? "bg-sai-orange/10 text-sai-orange" 
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <item.icon className="h-5 w-5" />
+                            <div className="flex flex-col">
+                              <span>{item.title}</span>
+                              <span className="text-sm font-medium font-hindi text-muted-foreground">{item.hindiTitle}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </nav>
+                    <div className="mt-auto p-4">
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start gap-2 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors duration-200" 
+                        onClick={handleLogout}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <div className="flex flex-col">
+                          <span>Logout</span>
+                          <span className="text-sm font-medium font-hindi text-muted-foreground">लॉग आउट</span>
+                        </div>
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
         </div>
       </div>

@@ -20,6 +20,9 @@ import * as XLSX from "xlsx"
 import { motion } from "framer-motion"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
+import { VolunteerProfileDialog } from "@/components/volunteer-profile-dialog"
+import { VolunteerData, VolunteerStatus } from "@/lib/types"
+import { downloadToExcel } from "@/lib/xlsx-utils"
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -31,70 +34,86 @@ export default function DashboardPage() {
     coming: 0,
     notComing: 0,
   })
-  const [recentVolunteers, setRecentVolunteers] = useState<any[]>([])
+  const [recentVolunteers, setRecentVolunteers] = useState<VolunteerData[]>([])
   const [registeredCount, setRegisteredCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeSearch, setActiveSearch] = useState("")
   const [registeredSearch, setRegisteredSearch] = useState("")
   const [cancelledSearch, setCancelledSearch] = useState("")
+  const [selectedVolunteer, setSelectedVolunteer] = useState<VolunteerData | null>(null)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
+      const [statsResult, volunteersResult, { count }] = await Promise.all([
+        getVolunteerStats(),
+        getVolunteers(),
+        supabase.from('registered_volunteers').select('*', { count: 'exact', head: true })
+      ])
+
+      setDbStats(statsResult)
+      setRecentVolunteers(volunteersResult)
+      setRegisteredCount(count || 0)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch latest data. Please refresh the page.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!user) return
 
     let volunteersChannel: RealtimeChannel | null = null
+    let registeredChannel: RealtimeChannel | null = null
     let isMounted = true
 
-    async function fetchData() {
-      if (!isMounted) return
-      setIsLoading(true)
-      try {
-        const [statsResult, volunteersResult, { count }] = await Promise.all([
-          getVolunteerStats(),
-          getVolunteers(),
-          supabase.from('registered_volunteers').select('*', { count: 'exact', head: true })
-        ])
-
-        if (!isMounted) return
-        setDbStats(statsResult)
-        setRecentVolunteers(volunteersResult)
-        setRegisteredCount(count || 0)
-        } catch (error) {
-          console.error("Error fetching Supabase data:", error)
-        if (!isMounted) return
-          toast({
-            title: "Database Error",
-            description: "Could not fetch dashboard data from Supabase.",
-            variant: "destructive",
-          })
-      } finally {
-        if (isMounted) {
-        setIsLoading(false)
-        }
-      }
-    }
-
+    // Initial fetch
     fetchData()
 
-    // Set up real-time subscription
+    // Set up real-time subscriptions
     volunteersChannel = supabase
       .channel('volunteers-changes')
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'volunteers_volunteers' },
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'volunteers_volunteers' 
+        },
         () => {
           if (!isMounted) return
-          console.log('Volunteers table changed, refreshing data...')
-          fetchData()
-        }
-      )
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'registered_volunteers' },
-        () => {
-          if (!isMounted) return
-          console.log('Registered volunteers table changed, refreshing data...')
           fetchData()
         }
       )
       .subscribe()
+
+    registeredChannel = supabase
+      .channel('registered-changes')
+      .on('postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'registered_volunteers' 
+        },
+        () => {
+          if (!isMounted) return
+          fetchData()
+        }
+      )
+      .subscribe()
+
+    // Set up periodic refresh as backup
+    const refreshInterval = setInterval(() => {
+      if (isMounted) {
+        fetchData()
+      }
+    }, 30000) // Refresh every 30 seconds
 
     // Cleanup function
     return () => {
@@ -102,6 +121,10 @@ export default function DashboardPage() {
       if (volunteersChannel) {
         volunteersChannel.unsubscribe()
       }
+      if (registeredChannel) {
+        registeredChannel.unsubscribe()
+      }
+      clearInterval(refreshInterval)
     }
   }, [user, toast])
 
@@ -119,37 +142,50 @@ export default function DashboardPage() {
     })
   }, [recentVolunteers, searchQuery])
 
-  const handleVolunteerClick = (saiConnectId: string) => {
-    router.push(`/volunteers/${saiConnectId}`)
+  const handleVolunteerClick = (volunteer: VolunteerData) => {
+    setSelectedVolunteer(volunteer)
+    setIsProfileOpen(true)
   }
 
-  const downloadVolunteers = (volunteers: any[], type: 'active' | 'registered' | 'cancelled') => {
-    const wb = XLSX.utils.book_new()
+  const handleVolunteerUpdate = () => {
+    fetchData()
+  }
+
+  const renderVolunteerRow = (volunteer: VolunteerData) => (
+    <TableRow 
+      key={volunteer.sai_connect_id}
+      className="cursor-pointer hover:bg-accent/50 transition-colors"
+      onClick={() => handleVolunteerClick(volunteer)}
+    >
+      <TableCell className="font-medium">{volunteer.full_name}</TableCell>
+      <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
+      <TableCell>{volunteer.sai_connect_id}</TableCell>
+    </TableRow>
+  )
+
+  const downloadVolunteers = (volunteers: VolunteerData[], type: VolunteerStatus) => {
     const data = volunteers.map(volunteer => ({
-      'Sai Connect ID': volunteer.sai_connect_id,
-      'Full Name': volunteer.full_name || '',
-      'Mobile Number': volunteer.mobile_number || '',
-      'SSS District': volunteer.sss_district || '',
-      'Age': volunteer.age || '',
-      'Aadhar Number': volunteer.aadhar_number || '',
-      'Gender': volunteer.gender || '',
-      'Samiti/Bhajan Mandli': volunteer.samiti_or_bhajan_mandli || '',
-      'Education': volunteer.education || '',
-      'Special Qualifications': volunteer.special_qualifications || '',
-      'Sevadal Training': volunteer.sevadal_training_certificate ? 'Yes' : 'No',
-      'Past Prashanti Service': volunteer.past_prashanti_service ? 'Yes' : 'No',
-      'Last Service Location': volunteer.last_service_location || '',
-      'Other Service Location': volunteer.other_service_location || '',
-      'Duty Point': volunteer.duty_point || '',
-      ...(volunteer.registered_volunteers ? {
-        'Batch': volunteer.registered_volunteers.batch || '',
-        'Service Location': volunteer.registered_volunteers.service_location || ''
-      } : {})
+      "Full Name": volunteer.full_name || "N/A",
+      "SAI Connect ID": volunteer.sai_connect_id,
+      "Mobile Number": volunteer.mobile_number || "N/A",
+      "Age": volunteer.age || "N/A",
+      "SSS District": volunteer.sss_district || "N/A",
+      "Gender": volunteer.gender || "N/A",
+      "Samiti/Bhajan Mandli": volunteer.samiti_or_bhajan_mandli || "N/A",
+      "Education": volunteer.education || "N/A",
+      "Special Qualifications": volunteer.special_qualifications || "N/A",
+      "Sevadal Training Certificate": volunteer.sevadal_training_certificate ? "Yes" : "No",
+      "Past Prashanti Service": volunteer.past_prashanti_service ? "Yes" : "No",
+      "Last Service Location": volunteer.last_service_location || "N/A",
+      "Other Service Location": volunteer.other_service_location || "N/A",
+      "Duty Point": volunteer.duty_point || "N/A",
+      "Prashanti Arrival": volunteer.prashanti_arrival || "N/A",
+      "Prashanti Departure": volunteer.prashanti_departure || "N/A",
+      "Batch": volunteer.registered_volunteers?.batch || "N/A",
+      "Service Location": volunteer.registered_volunteers?.service_location || "N/A"
     }))
 
-    const ws = XLSX.utils.json_to_sheet(data)
-    XLSX.utils.book_append_sheet(wb, ws, `${type}-volunteers`)
-    XLSX.writeFile(wb, `${type}-volunteers-${new Date().toISOString().split('T')[0]}.xlsx`)
+    downloadToExcel(data, `${type}-volunteers-${new Date().toISOString().split('T')[0]}`)
   }
 
   if (isLoading) {
@@ -248,7 +284,7 @@ export default function DashboardPage() {
       >
         {/* Active Volunteers */}
         <Card className="border-sai-orange/20 hover:border-sai-orange/30 transition-all duration-300 hover:shadow-lg">
-            <CardHeader>
+          <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5 text-green-500" />
@@ -268,15 +304,15 @@ export default function DashboardPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search active volunteers..."
+                  placeholder="Search by name, ID, or mobile..."
                   value={activeSearch}
                   onChange={(e) => setActiveSearch(e.target.value)}
                   className="pl-9"
                 />
               </div>
             </div>
-            </CardHeader>
-            <CardContent>
+          </CardHeader>
+          <CardContent>
             <div className="max-h-[400px] overflow-y-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
@@ -289,23 +325,15 @@ export default function DashboardPage() {
                 <TableBody>
                   {recentVolunteers
                     .filter(volunteer => {
-                      const matchesSearch = !activeSearch || 
-                        volunteer.full_name?.toLowerCase().includes(activeSearch.toLowerCase()) ||
-                        volunteer.mobile_number?.toLowerCase().includes(activeSearch.toLowerCase()) ||
-                        volunteer.sai_connect_id?.toLowerCase().includes(activeSearch.toLowerCase())
-                      return !volunteer.is_cancelled && !volunteer.registered_volunteers && matchesSearch
+                      const searchTerm = activeSearch.toLowerCase()
+                      return !volunteer.is_cancelled && 
+                        !volunteer.registered_volunteers && 
+                        (!searchTerm || 
+                          volunteer.full_name?.toLowerCase().includes(searchTerm) ||
+                          volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
+                          volunteer.sai_connect_id?.toLowerCase().includes(searchTerm))
                     })
-                    .map((volunteer) => (
-                      <TableRow 
-                        key={volunteer.sai_connect_id}
-                        className="cursor-pointer hover:bg-accent/50 transition-colors"
-                        onClick={() => router.push(`/volunteers/${volunteer.sai_connect_id}`)}
-                      >
-                        <TableCell className="font-medium">{volunteer.full_name}</TableCell>
-                        <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
-                        <TableCell>{volunteer.sai_connect_id}</TableCell>
-                      </TableRow>
-                    ))}
+                    .map(renderVolunteerRow)}
                 </TableBody>
               </Table>
             </div>
@@ -315,11 +343,13 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={() => {
                   const activeVolunteers = recentVolunteers.filter(volunteer => {
-                    const matchesSearch = !activeSearch || 
-                      volunteer.full_name?.toLowerCase().includes(activeSearch.toLowerCase()) ||
-                      volunteer.mobile_number?.toLowerCase().includes(activeSearch.toLowerCase()) ||
-                      volunteer.sai_connect_id?.toLowerCase().includes(activeSearch.toLowerCase())
-                    return !volunteer.is_cancelled && !volunteer.registered_volunteers && matchesSearch
+                    const searchTerm = activeSearch.toLowerCase()
+                    return !volunteer.is_cancelled && 
+                      !volunteer.registered_volunteers && 
+                      (!searchTerm || 
+                        volunteer.full_name?.toLowerCase().includes(searchTerm) ||
+                        volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
+                        volunteer.sai_connect_id?.toLowerCase().includes(searchTerm))
                   })
                   downloadVolunteers(activeVolunteers, 'active')
                 }}
@@ -354,7 +384,7 @@ export default function DashboardPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search registered volunteers..."
+                  placeholder="Search by name, ID, or mobile..."
                   value={registeredSearch}
                   onChange={(e) => setRegisteredSearch(e.target.value)}
                   className="pl-9"
@@ -366,32 +396,23 @@ export default function DashboardPage() {
             <div className="max-h-[400px] overflow-y-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow>
+                  <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Mobile</TableHead>
                     <TableHead>Sai Connect ID</TableHead>
-                    </TableRow>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recentVolunteers
                     .filter(volunteer => {
-                      const matchesSearch = !registeredSearch || 
-                        volunteer.full_name?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
-                        volunteer.mobile_number?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
-                        volunteer.sai_connect_id?.toLowerCase().includes(registeredSearch.toLowerCase())
-                      return volunteer.registered_volunteers && matchesSearch
+                      const searchTerm = registeredSearch.toLowerCase()
+                      return volunteer.registered_volunteers && 
+                        (!searchTerm || 
+                          volunteer.full_name?.toLowerCase().includes(searchTerm) ||
+                          volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
+                          volunteer.sai_connect_id?.toLowerCase().includes(searchTerm))
                     })
-                    .map((volunteer) => (
-                      <TableRow
-                        key={volunteer.sai_connect_id}
-                        className="cursor-pointer hover:bg-accent/50 transition-colors"
-                        onClick={() => router.push(`/volunteers/${volunteer.sai_connect_id}`)}
-                      >
-                        <TableCell className="font-medium">{volunteer.full_name}</TableCell>
-                        <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
-                        <TableCell>{volunteer.sai_connect_id}</TableCell>
-                      </TableRow>
-                    ))}
+                    .map(renderVolunteerRow)}
                 </TableBody>
               </Table>
             </div>
@@ -401,11 +422,12 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={() => {
                   const registeredVolunteers = recentVolunteers.filter(volunteer => {
-                    const matchesSearch = !registeredSearch || 
-                      volunteer.full_name?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
-                      volunteer.mobile_number?.toLowerCase().includes(registeredSearch.toLowerCase()) ||
-                      volunteer.sai_connect_id?.toLowerCase().includes(registeredSearch.toLowerCase())
-                    return volunteer.registered_volunteers && matchesSearch
+                    const searchTerm = registeredSearch.toLowerCase()
+                    return volunteer.registered_volunteers && 
+                      (!searchTerm || 
+                        volunteer.full_name?.toLowerCase().includes(searchTerm) ||
+                        volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
+                        volunteer.sai_connect_id?.toLowerCase().includes(searchTerm))
                   })
                   downloadVolunteers(registeredVolunteers, 'registered')
                 }}
@@ -440,7 +462,7 @@ export default function DashboardPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search cancelled volunteers..."
+                  placeholder="Search by name, ID, or mobile..."
                   value={cancelledSearch}
                   onChange={(e) => setCancelledSearch(e.target.value)}
                   className="pl-9"
@@ -461,23 +483,14 @@ export default function DashboardPage() {
                 <TableBody>
                   {recentVolunteers
                     .filter(volunteer => {
-                      const matchesSearch = !cancelledSearch || 
-                        volunteer.full_name?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
-                        volunteer.mobile_number?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
-                        volunteer.sai_connect_id?.toLowerCase().includes(cancelledSearch.toLowerCase())
-                      return volunteer.is_cancelled && matchesSearch
+                      const searchTerm = cancelledSearch.toLowerCase()
+                      return volunteer.is_cancelled && 
+                        (!searchTerm || 
+                          volunteer.full_name?.toLowerCase().includes(searchTerm) ||
+                          volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
+                          volunteer.sai_connect_id?.toLowerCase().includes(searchTerm))
                     })
-                    .map((volunteer) => (
-                      <TableRow
-                        key={volunteer.sai_connect_id}
-                        className="cursor-pointer hover:bg-accent/50 transition-colors"
-                        onClick={() => router.push(`/volunteers/${volunteer.sai_connect_id}`)}
-                      >
-                        <TableCell className="font-medium">{volunteer.full_name}</TableCell>
-                        <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
-                        <TableCell>{volunteer.sai_connect_id}</TableCell>
-                      </TableRow>
-                    ))}
+                    .map(renderVolunteerRow)}
                 </TableBody>
               </Table>
             </div>
@@ -487,11 +500,12 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={() => {
                   const cancelledVolunteers = recentVolunteers.filter(volunteer => {
-                    const matchesSearch = !cancelledSearch || 
-                      volunteer.full_name?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
-                      volunteer.mobile_number?.toLowerCase().includes(cancelledSearch.toLowerCase()) ||
-                      volunteer.sai_connect_id?.toLowerCase().includes(cancelledSearch.toLowerCase())
-                    return volunteer.is_cancelled && matchesSearch
+                    const searchTerm = cancelledSearch.toLowerCase()
+                    return volunteer.is_cancelled && 
+                      (!searchTerm || 
+                        volunteer.full_name?.toLowerCase().includes(searchTerm) ||
+                        volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
+                        volunteer.sai_connect_id?.toLowerCase().includes(searchTerm))
                   })
                   downloadVolunteers(cancelledVolunteers, 'cancelled')
                 }}
@@ -501,9 +515,16 @@ export default function DashboardPage() {
                 Download Cancelled
               </Button>
             </div>
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
       </motion.div>
+
+      <VolunteerProfileDialog
+        volunteer={selectedVolunteer}
+        isOpen={isProfileOpen}
+        onOpenChange={setIsProfileOpen}
+        onUpdate={handleVolunteerUpdate}
+      />
     </div>
   )
 }

@@ -87,7 +87,21 @@ export async function createVolunteerInDb(volunteer: VolunteerData) {
 }
 
 export async function updateVolunteerInDb(id: string, updates: Partial<VolunteerData>) {
-  const { data, error } = await supabase.from("volunteers_volunteers").update(updates).eq("sai_connect_id", id).select()
+  // Remove registered_volunteers from updates as it's a relationship, not a column
+  const { registered_volunteers, ...volunteerUpdates } = updates
+
+  const { data, error } = await supabase
+    .from("volunteers_volunteers")
+    .update(volunteerUpdates)
+    .eq("sai_connect_id", id)
+    .select(`
+      *,
+      registered_volunteers!left (
+        sai_connect_id,
+        batch,
+        service_location
+      )
+    `)
 
   if (error) {
     console.error("Error updating volunteer:", error)
@@ -112,7 +126,14 @@ export async function getVolunteerById(id: string): Promise<VolunteerData | null
   try {
     const { data, error } = await supabase
       .from("volunteers_volunteers")
-      .select("*")
+      .select(`
+        *,
+        registered_volunteers!left (
+          sai_connect_id,
+          batch,
+          service_location
+        )
+      `)
       .eq("sai_connect_id", id)
       .maybeSingle()
 
@@ -128,18 +149,79 @@ export async function getVolunteerById(id: string): Promise<VolunteerData | null
   }
 }
 
-export async function cancelVolunteerInDb(id: string) {
-  const { data, error } = await supabase
-    .from("volunteers_volunteers")
-    .update({ is_cancelled: true })
-    .eq("sai_connect_id", id)
-    .select()
+export async function cancelVolunteerInDb(saiConnectId: string) {
+  try {
+    // First, check if the volunteer exists
+    const { data: volunteer, error: fetchError } = await supabase
+      .from('volunteers_volunteers')
+      .select('*')
+      .eq('sai_connect_id', saiConnectId)
+      .single()
 
-  if (error) {
-    console.error("Error canceling volunteer:", error)
+    if (fetchError) {
+      throw new Error('Could not find volunteer')
+    }
+
+    // If volunteer is registered, remove from registered_volunteers first
+    if (volunteer.registered_volunteers) {
+      const { error: unregisterError } = await supabase
+        .from('registered_volunteers')
+        .delete()
+        .eq('sai_connect_id', saiConnectId)
+
+      if (unregisterError) {
+        throw new Error('Could not unregister volunteer')
+      }
+    }
+
+    // Now cancel the volunteer
+    const { error: updateError } = await supabase
+      .from('volunteers_volunteers')
+      .update({ is_cancelled: true })
+      .eq('sai_connect_id', saiConnectId)
+
+    if (updateError) {
+      throw new Error('Could not cancel volunteer')
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error cancelling volunteer:', error)
     throw error
   }
+}
 
-  return data?.[0]
+export async function registerVolunteer(data: {
+  sai_connect_id: string
+  age: number
+  batch: string
+  service_location: string
+}) {
+  // First update the volunteer's age
+  const { error: updateError } = await supabase
+    .from("volunteers_volunteers")
+    .update({ age: data.age })
+    .eq("sai_connect_id", data.sai_connect_id)
+
+  if (updateError) {
+    console.error("Error updating volunteer age:", updateError)
+    throw updateError
+  }
+
+  // Then register the volunteer
+  const { error: registrationError } = await supabase
+    .from("registered_volunteers")
+    .insert([{
+      sai_connect_id: data.sai_connect_id,
+      batch: data.batch,
+      service_location: data.service_location
+    }])
+
+  if (registrationError) {
+    console.error("Error registering volunteer:", registrationError)
+    throw registrationError
+  }
+
+  return true
 }
 

@@ -1,72 +1,87 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { getVolunteerById, updateVolunteerInDb } from "@/lib/supabase-service"
-import { Loader2, User, ArrowLeft, Edit2, Save, X, CheckCircle2, XCircle } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { getVolunteerById, updateVolunteerInDb, cancelVolunteerInDb } from "@/lib/supabase-service"
+import { Loader2, User, ArrowLeft, Edit2, Save, X, CheckCircle2, XCircle, UserX } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { QUERY_KEYS } from "@/lib/query-hooks"
 
-export default function VolunteerDetailsPage({ params }: { params: { saiConnectId: string } }) {
+export default function VolunteerDetailsPage() {
   const router = useRouter()
+  const params = useParams()
   const { toast } = useToast()
-  const [volunteer, setVolunteer] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const saiConnectId = params?.saiConnectId as string
   const [isEditing, setIsEditing] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editedVolunteer, setEditedVolunteer] = useState<any>(null)
 
-  useEffect(() => {
-    async function fetchVolunteer() {
-      try {
-        const data = await getVolunteerById(params.saiConnectId)
-        setVolunteer(data)
-      } catch (error) {
-        console.error("Error fetching volunteer:", error)
-        toast({
-          title: "Error",
-          description: "Failed to fetch volunteer details.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
+  const { data: volunteer, isLoading, error } = useQuery({
+    queryKey: [QUERY_KEYS.VOLUNTEER, saiConnectId],
+    queryFn: () => getVolunteerById(saiConnectId),
+    enabled: !!saiConnectId,
+    onSuccess: (data) => {
+      if (!editedVolunteer) {
+        setEditedVolunteer(data)
       }
     }
+  })
 
-    fetchVolunteer()
-  }, [params.saiConnectId])
+  const handleCancel = async () => {
+    if (!volunteer) return
 
-  const handleCancel = () => {
-    setIsEditing(false)
-    // Reset form to original values
-    fetchVolunteer()
+    try {
+      await cancelVolunteerInDb(volunteer.sai_connect_id)
+      await queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.VOLUNTEER, saiConnectId] })
+      toast({
+        title: "Success",
+        description: "Volunteer has been cancelled successfully.",
+      })
+    } catch (err) {
+      console.error('Error cancelling volunteer:', err)
+      toast({
+        title: "Error",
+        description: "Failed to cancel volunteer. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
+    if (!editedVolunteer) return
+
     try {
-      await updateVolunteerInDb(params.saiConnectId, volunteer)
+      await updateVolunteerInDb(saiConnectId, editedVolunteer)
+      await queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.VOLUNTEER, saiConnectId] })
+      await queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.VOLUNTEERS] })
+      setIsEditing(false)
       toast({
-        title: "Success!",
+        title: "Success",
         description: "Volunteer details updated successfully.",
       })
-      setIsEditing(false)
-    } catch (error) {
-      console.error("Error updating volunteer:", error)
+    } catch (err) {
+      console.error('Error updating volunteer:', err)
       toast({
         title: "Error",
-        description: "Failed to update volunteer details.",
+        description: "Failed to update volunteer details. Please try again.",
         variant: "destructive",
       })
-    } finally {
-      setIsSubmitting(false)
     }
+  }
+
+  const handleEditCancel = () => {
+    setIsEditing(false)
+    setEditedVolunteer(volunteer)
   }
 
   if (isLoading) {
@@ -84,24 +99,10 @@ export default function VolunteerDetailsPage({ params }: { params: { saiConnectI
     )
   }
 
-  if (!volunteer) {
+  if (error || !volunteer) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center space-y-4"
-        >
-          <XCircle className="h-12 w-12 text-red-500 mx-auto" />
-          <h2 className="text-xl font-semibold">Volunteer Not Found</h2>
-          <p className="text-muted-foreground">The requested volunteer could not be found.</p>
-          <Button
-            onClick={() => router.push("/volunteers")}
-            className="bg-sai-orange hover:bg-sai-orange-dark"
-          >
-            Return to Volunteers
-          </Button>
-        </motion.div>
+      <div className="flex h-full items-center justify-center text-red-500">
+        An error occurred while loading volunteer details
       </div>
     )
   }
@@ -138,12 +139,16 @@ export default function VolunteerDetailsPage({ params }: { params: { saiConnectI
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <User className="h-5 w-5 text-sai-orange" />
-                  <CardTitle>{volunteer.full_name}</CardTitle>
+                  <CardTitle>{editedVolunteer?.full_name}</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={volunteer.is_cancelled ? "destructive" : "default"}>
-                    {volunteer.is_cancelled ? "Cancelled" : "Active"}
-                  </Badge>
+                  {volunteer.is_cancelled ? (
+                    <Badge variant="destructive">Cancelled</Badge>
+                  ) : volunteer.registered_volunteers ? (
+                    <Badge variant="default" className="bg-blue-500 hover:bg-blue-600">Registered</Badge>
+                  ) : (
+                    <Badge variant="secondary">Not Registered</Badge>
+                  )}
                   {!isEditing ? (
                     <Button
                       type="button"
@@ -159,7 +164,7 @@ export default function VolunteerDetailsPage({ params }: { params: { saiConnectI
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={handleCancel}
+                        onClick={handleEditCancel}
                         className="text-red-500 hover:text-red-600"
                       >
                         <X className="mr-2 h-4 w-4" />
@@ -167,60 +172,111 @@ export default function VolunteerDetailsPage({ params }: { params: { saiConnectI
                       </Button>
                       <Button
                         type="submit"
-                        disabled={isSubmitting}
                         className="bg-sai-orange hover:bg-sai-orange-dark"
                       >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="mr-2 h-4 w-4" />
-                            Save Changes
-                          </>
-                        )}
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
                       </Button>
                     </div>
                   )}
                 </div>
               </div>
-              <CardDescription>SAI Connect ID: {volunteer.sai_connect_id}</CardDescription>
+              <CardDescription>SAI Connect ID: {editedVolunteer?.sai_connect_id}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Age</Label>
-                  <div className="text-sm">{volunteer.age || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editedVolunteer?.age || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, age: parseInt(e.target.value) })}
+                      min="18"
+                      max="100"
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.age || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Mobile Number</Label>
-                  <div className="text-sm">{volunteer.mobile_number || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.mobile_number || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, mobile_number: e.target.value })}
+                      maxLength={10}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.mobile_number || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Aadhar Number</Label>
-                  <div className="text-sm">{volunteer.aadhar_number || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.aadhar_number || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, aadhar_number: e.target.value })}
+                      maxLength={12}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.aadhar_number || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>SSS District</Label>
-                  <div className="text-sm">{volunteer.sss_district || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.sss_district || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, sss_district: e.target.value })}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.sss_district || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Gender</Label>
-                  <div className="text-sm">{volunteer.Gender || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.Gender || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, Gender: e.target.value })}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.Gender || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Samiti/Bhajan Mandli</Label>
-                  <div className="text-sm">{volunteer.samiti_or_bhajan_mandli || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.samiti_or_bhajan_mandli || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, samiti_or_bhajan_mandli: e.target.value })}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.samiti_or_bhajan_mandli || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Education</Label>
-                  <div className="text-sm">{volunteer.education || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.education || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, education: e.target.value })}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.education || "Not specified"}</div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Special Qualifications</Label>
-                  <div className="text-sm">{volunteer.special_qualifications || "Not specified"}</div>
+                  {isEditing ? (
+                    <Input
+                      value={editedVolunteer?.special_qualifications || ''}
+                      onChange={(e) => setEditedVolunteer({ ...editedVolunteer, special_qualifications: e.target.value })}
+                    />
+                  ) : (
+                    <div className="text-sm">{editedVolunteer?.special_qualifications || "Not specified"}</div>
+                  )}
                 </div>
               </div>
 
@@ -228,8 +284,8 @@ export default function VolunteerDetailsPage({ params }: { params: { saiConnectI
                 <div className="flex items-center space-x-2">
                   <Switch 
                     id="sevadal" 
-                    checked={volunteer.sevadal_training_certificate} 
-                    onCheckedChange={(checked) => setVolunteer({ ...volunteer, sevadal_training_certificate: checked })}
+                    checked={editedVolunteer?.sevadal_training_certificate} 
+                    onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, sevadal_training_certificate: checked })}
                     disabled={!isEditing}
                     className="data-[state=checked]:bg-sai-orange"
                   />
@@ -238,28 +294,18 @@ export default function VolunteerDetailsPage({ params }: { params: { saiConnectI
                 <div className="flex items-center space-x-2">
                   <Switch 
                     id="past-service" 
-                    checked={volunteer.past_prashanti_service} 
-                    onCheckedChange={(checked) => setVolunteer({ ...volunteer, past_prashanti_service: checked })}
+                    checked={editedVolunteer?.past_prashanti_service} 
+                    onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, past_prashanti_service: checked })}
                     disabled={!isEditing}
                     className="data-[state=checked]:bg-sai-orange"
                   />
                   <Label htmlFor="past-service">Past Prashanti Service</Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="cancelled" 
-                    checked={volunteer.is_cancelled} 
-                    onCheckedChange={(checked) => setVolunteer({ ...volunteer, is_cancelled: checked })}
-                    disabled={!isEditing}
-                    className="data-[state=checked]:bg-red-500"
-                  />
-                  <Label htmlFor="cancelled">Mark as Cancelled</Label>
-                </div>
               </div>
 
               {volunteer.registered_volunteers && (
-                <div className="mt-6 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-2">
+                <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 text-green-600 mb-2">
                     <CheckCircle2 className="h-5 w-5" />
                     <h3 className="font-semibold">Registration Details</h3>
                   </div>

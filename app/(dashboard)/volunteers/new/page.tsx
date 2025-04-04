@@ -80,6 +80,63 @@ export default function NewVolunteerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+
+    // Validate full name (only alphabets and spaces)
+    if (!/^[A-Za-z\s]+$/.test(fullName)) {
+      toast({
+        title: "Invalid Name",
+        description: "Name should only contain alphabets and spaces",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate SAI Connect ID (only numbers)
+    if (!/^\d{6}$/.test(saiConnectId)) {
+      toast({
+        title: "Invalid SAI Connect ID",
+        description: "SAI Connect ID must be exactly 6 digits",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate age (between 18 and 100)
+    const ageNum = parseInt(age)
+    if (isNaN(ageNum) || ageNum < 5 || ageNum > 100) {
+      toast({
+        title: "Invalid Age",
+        description: "Age must be between 18 and 100",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate mobile number (exactly 10 digits)
+    if (mobileNumber && !/^\d{10}$/.test(mobileNumber)) {
+      toast({
+        title: "Invalid Mobile Number",
+        description: "Mobile number must be exactly 10 digits",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate Aadhar number (exactly 12 digits)
+    if (aadharNumber && !/^\d{12}$/.test(aadharNumber)) {
+      toast({
+        title: "Invalid Aadhar Number",
+        description: "Aadhar number must be exactly 12 digits",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       await createVolunteerInDb({
         sai_connect_id: saiConnectId,
@@ -170,7 +227,7 @@ export default function NewVolunteerPage() {
                     required
                     className="border-sai-orange/20 focus:border-sai-orange/40"
                   />
-                  <p className="text-sm text-muted-foreground">Must be 6 digits only</p>
+                  <p className="text-sm text-muted-foreground">Must be exactly 6 digits</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="full-name">Full Name</Label>
@@ -178,10 +235,14 @@ export default function NewVolunteerPage() {
                     id="full-name"
                     placeholder="Enter full name"
                     value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^A-Za-z\s]/g, '')
+                      setFullName(value)
+                    }}
                     required
                     className="border-sai-orange/20 focus:border-sai-orange/40"
                   />
+                  <p className="text-sm text-muted-foreground">Only alphabets and spaces allowed</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="age">Age</Label>
@@ -192,12 +253,15 @@ export default function NewVolunteerPage() {
                     value={age}
                     onChange={(e) => {
                       const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
-                      setAge(value)
+                      if (parseInt(value) <= 100) {
+                        setAge(value)
+                      }
                     }}
-                    min="1"
-                    max="99"
+                    min="18"
+                    max="100"
                     className="border-sai-orange/20 focus:border-sai-orange/40"
                   />
+                  <p className="text-sm text-muted-foreground">Must be between 18 and 100</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="mobile">Mobile Number</Label>
@@ -213,7 +277,7 @@ export default function NewVolunteerPage() {
                     pattern="[0-9]{10}"
                     className="border-sai-orange/20 focus:border-sai-orange/40"
                   />
-                  <p className="text-sm text-muted-foreground">Must be 10 digits only</p>
+                  <p className="text-sm text-muted-foreground">Must be exactly 10 digits</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="aadhar">Aadhar Number</Label>
@@ -229,7 +293,7 @@ export default function NewVolunteerPage() {
                     pattern="[0-9]{12}"
                     className="border-sai-orange/20 focus:border-sai-orange/40"
                   />
-                  <p className="text-sm text-muted-foreground">Must be 12 digits only</p>
+                  <p className="text-sm text-muted-foreground">Must be exactly 12 digits</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="district">SSS District</Label>

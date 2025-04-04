@@ -26,29 +26,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="light"
-        forcedTheme="light"
-        enableSystem={false}
-      >
-        <div className={mounted ? "" : "hidden"}>
-          <AuthProvider>
-            <ToastProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ToastProvider>
+            <div className={mounted ? "" : "hidden"}>
               {children}
               <Toaster />
-            </ToastProvider>
-          </AuthProvider>
-        </div>
-        {!mounted && (
-          <div className="min-h-screen bg-white">
-            <div className="flex h-screen items-center justify-center">
-              <div className="text-black">Loading...</div>
             </div>
+          </ToastProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+      {!mounted && (
+        <div className="min-h-screen bg-white">
+          <div className="flex h-screen items-center justify-center">
+            <div className="text-black">Loading...</div>
           </div>
-        )}
-      </ThemeProvider>
-    </QueryClientProvider>
+        </div>
+      )}
+    </ThemeProvider>
   )
 } 

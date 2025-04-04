@@ -5,31 +5,31 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 0%;
+    --foreground: 240 10% 3.9%;
     
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
+    --card-foreground: 240 10% 3.9%;
     
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
+    --popover-foreground: 240 10% 3.9%;
     
     --primary: 24 100% 50%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 3.9%;
     
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
     
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 10% 3.9%;
     
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
     --ring: 24 100% 50%;
     
     --radius: 0.5rem;
@@ -38,6 +38,40 @@
     --sidebar-foreground: 0 0% 0%;
     --sidebar-border: 214.3 31.8% 91.4%;
   }
+
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 6%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+    
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 24 95% 53%;
+
+    --sidebar: 240 10% 3.9%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-border: 240 3.7% 15.9%;
+  }
 }
 
 @layer base {
@@ -45,39 +79,83 @@
     @apply border-border;
   }
   body {
-    @apply bg-white text-black;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
 /* Sai Organisation specific styles */
 .sai-quote {
-  @apply font-playfair text-center text-lg italic text-sai-orange-dark py-4;
+  @apply font-playfair text-center text-lg italic text-sai-orange-dark dark:text-sai-orange;
 }
 
 .sai-section {
-  @apply rounded-lg p-6 shadow-sm bg-white;
+  @apply rounded-lg p-6 shadow-sm bg-background border border-border/50;
 }
 
 .sai-section-blue {
-  @apply bg-sai-blue-light/20;
+  @apply bg-blue-50/50 dark:bg-blue-950/20;
 }
 
 .sai-section-green {
-  @apply bg-sai-green-light/20;
+  @apply bg-green-50/50 dark:bg-green-950/20;
 }
 
 .sai-section-pink {
-  @apply bg-sai-pink-light/20;
+  @apply bg-pink-50/50 dark:bg-pink-950/20;
 }
 
 .sai-button {
-  @apply bg-sai-orange hover:bg-sai-orange-dark text-white transition-colors;
+  @apply bg-sai-orange hover:bg-sai-orange-dark text-white transition-colors dark:bg-sai-orange/90 dark:hover:bg-sai-orange;
 }
 
 .sai-link {
-  @apply text-sai-orange hover:text-sai-orange-dark transition-colors;
+  @apply text-sai-orange hover:text-sai-orange-dark transition-colors dark:text-sai-orange/90 dark:hover:text-sai-orange;
 }
 
 .bg-sai-gradient {
-  @apply bg-gradient-to-r from-sai-orange to-sai-orange-dark;
+  @apply bg-gradient-to-r from-sai-orange to-sai-orange-dark dark:from-gray-900 dark:to-gray-800;
+}
+
+/* Dark mode specific overrides */
+.dark .shadow-md {
+  --tw-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --tw-shadow-colored: 0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);
+}
+
+.dark .hover\:shadow-lg:hover {
+  --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);
+}
+
+/* Table styles for dark mode */
+.dark .bg-accent\/50 {
+  background-color: rgba(var(--accent) / 0.2);
+}
+
+.dark .hover\:bg-accent\/50:hover {
+  background-color: rgba(var(--accent) / 0.3);
+}
+
+/* Status colors for dark mode */
+.dark .bg-red-50 {
+  @apply bg-red-950/30;
+}
+
+.dark .bg-blue-50 {
+  @apply bg-blue-950/30;
+}
+
+.dark .bg-green-50 {
+  @apply bg-green-950/30;
+}
+
+/* Input and form field styles for dark mode */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  @apply text-muted-foreground/60;
+}
+
+.dark input:focus,
+.dark textarea:focus {
+  @apply border-sai-orange/50 ring-sai-orange/20;
 }
