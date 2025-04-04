@@ -81,21 +81,19 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error("Login error:", err)
       
-      if (err?.error?.message === "Invalid email or password") {
-        // Check if email exists in the error response
-        if (err?.error?.details?.includes("email")) {
-          setErrorType('email')
-          setError("This email address is not registered")
-        } else {
-          setErrorType('password')
-          setError("Incorrect password")
-        }
-        
+      if (err?.message === "Invalid login credentials") {
+        setErrorType('password')
+        setError("Invalid email or password")
         toast({
           title: "Login Failed",
-          description: errorType === 'email' 
-            ? "This email address is not registered"
-            : "Incorrect password. Please try again.",
+          description: "Invalid email or password. Please try again.",
+          variant: "destructive",
+        })
+      } else if (err?.message === "Unauthorized access. Admin privileges required.") {
+        setError("This account does not have admin privileges")
+        toast({
+          title: "Access Denied",
+          description: "This account does not have admin privileges.",
           variant: "destructive",
         })
       } else {
@@ -243,6 +241,16 @@ export default function LoginPage() {
                   Remember me
                 </Label>
               </div>
+              {error && !errorType && (
+                <motion.p
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-sm text-red-500 flex items-center gap-1 bg-red-50 p-2 rounded"
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </motion.p>
+              )}
               <Button 
                 type="submit" 
                 className="w-full bg-sai-orange hover:bg-sai-orange-dark transition-colors duration-200" 

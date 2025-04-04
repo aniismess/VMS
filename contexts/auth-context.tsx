@@ -1,103 +1,131 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import { supabase, type SupabaseUser } from "@/lib/supabase"
-import type { Session } from "@supabase/supabase-js"
+import { createContext, useContext, useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
+import { User } from "@supabase/supabase-js"
 
-type AuthContextType = {
-  user: SupabaseUser | null
-  session: Session | null
+interface AuthContextType {
+  user: User | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<{ error: any | null }>
-  signUp: (email: string, password: string, name: string) => Promise<{ error: any | null }>
+  login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  signup: (email: string, password: string) => Promise<any>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoading: true,
+  login: async () => {},
+  signup: async () => {},
+  logout: async () => {},
+})
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SupabaseUser | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    // Check for active session on load
-    const initializeAuth = async () => {
-      setIsLoading(true)
-
-      // Get session from Supabase
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      setSession(session)
+    // Check active sessions and sets the user
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-
-      // Set up auth state change listener
-      const {
-        data: { subscription },
-      } = await supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-      })
-
       setIsLoading(false)
+    })
 
-      // Cleanup subscription on unmount
-      return () => {
-        subscription.unsubscribe()
-      }
-    }
+    // Listen for changes on auth state (logged in, signed out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      setIsLoading(false)
+    })
 
-    initializeAuth()
+    return () => subscription.unsubscribe()
   }, [])
 
   const login = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      return { error }
-    } catch (error) {
-      console.error("Login error:", error)
-      return { error }
+      if (error) throw error
+
+      // Check if user exists in admin_users table
+      const { data: adminData, error: adminError } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('id', data.user.id)
+        .single()
+
+      if (adminError || !adminData) {
+        await supabase.auth.signOut()
+        throw new Error("Unauthorized access. Admin privileges required.")
+      }
+
+      setUser(data.user)
+      router.refresh()
+    } catch (error: any) {
+      throw error
     }
   }
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signup = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            name,
-          },
-        },
+            is_admin: true
+          }
+        }
       })
 
-      return { error }
-    } catch (error) {
-      console.error("Signup error:", error)
-      return { error }
+      if (error) throw error
+
+      if (data.user) {
+        // Add to admin_users table
+        const { error: adminError } = await supabase
+          .from('admin_users')
+          .insert([
+            {
+              id: data.user.id,
+              email: data.user.email
+            }
+          ])
+
+        if (adminError) {
+          // If failed to add to admin_users, delete the auth user
+          await supabase.auth.admin.deleteUser(data.user.id)
+          throw adminError
+        }
+      }
+
+      return data
+    } catch (error: any) {
+      throw error
     }
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    try {
+      await supabase.auth.signOut()
+      setUser(null)
+      router.push('/login')
+    } catch (error: any) {
+      throw error
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, login, signUp, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, logout }}>
+      {children}
+    </AuthContext.Provider>
   )
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
+export const useAuth = () => {
+  return useContext(AuthContext)
 }
 

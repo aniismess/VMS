@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, UserPlus, LogOut, Menu, Sun, Moon } from "lucide-react"
+import { LayoutDashboard, Users, UserPlus, LogOut, Menu, Sun, Moon, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/contexts/auth-context"
@@ -29,6 +29,12 @@ const navItems = [
     hindiTitle: "स्वयंसेवक जोड़ें",
     href: "/volunteers/new",
     icon: UserPlus,
+  },
+  {
+    title: "Admin Management",
+    hindiTitle: "व्यवस्थापक प्रबंधन",
+    href: "/admins",
+    icon: Shield,
   },
 ]
 
