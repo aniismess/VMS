@@ -24,8 +24,10 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen bg-white">
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-sai-orange" />
+        </div>
       </div>
     )
   }
@@ -35,9 +37,9 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-white">
       <Sidebar />
-      <main className="flex-1 p-4">{children}</main>
+      <main className="flex-1 p-4 bg-white">{children}</main>
     </div>
   )
 }

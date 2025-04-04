@@ -40,7 +40,7 @@ interface RegisterVolunteerFormProps {
   }) => void
 }
 
-export default function RegisterVolunteerForm({ onRegister }: RegisterVolunteerFormProps) {
+export function RegisterVolunteerForm({ onRegister }: RegisterVolunteerFormProps) {
   const [saiConnectId, setSaiConnectId] = useState('')
   const [age, setAge] = useState('')
   const [batch, setBatch] = useState('')

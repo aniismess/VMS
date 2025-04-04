@@ -154,21 +154,23 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center space-y-4"
-        >
-          <Loader2 className="h-8 w-8 animate-spin text-sai-orange" />
-          <p className="text-sm text-muted-foreground">Loading dashboard data...</p>
-        </motion.div>
+      <div className="min-h-screen bg-white">
+        <div className="flex h-full items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center space-y-4"
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-sai-orange" />
+            <p className="text-sm text-black">Loading dashboard data...</p>
+          </motion.div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 bg-white min-h-screen">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -176,12 +178,12 @@ export default function DashboardPage() {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex-1">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your volunteer management system</p>
-      </div>
-          <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-sai-orange/20 shadow-lg">
+            <h1 className="text-3xl font-bold tracking-tight text-black">Dashboard</h1>
+            <p className="text-muted-foreground">Overview of your volunteer management system</p>
+          </div>
+          <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-sai-orange/20 shadow-lg self-end bg-white ring-2 ring-sai-orange/10 ring-offset-4 hover:border-sai-orange/30 hover:ring-sai-orange/20 transition-all duration-300">
             <Image
-              src="/sai-baba.jpg"
+              src="/assets/SSSIHL-Bhagawan-Sri-Sathya-Sai-Baba.jpg"
               alt="Sri Sathya Sai Baba"
               fill
               className="object-cover"

@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/contexts/auth-context"
 import { Toaster } from "@/components/ui/toaster"
 import { ToastProvider } from "@/contexts/toast-context"
+import { useEffect, useState } from "react"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,20 +19,35 @@ const queryClient = new QueryClient({
 })
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider
         attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
+        defaultTheme="light"
+        forcedTheme="light"
+        enableSystem={false}
       >
-        <AuthProvider>
-          <ToastProvider>
-            {children}
-            <Toaster />
-          </ToastProvider>
-        </AuthProvider>
+        <div className={mounted ? "" : "hidden"}>
+          <AuthProvider>
+            <ToastProvider>
+              {children}
+              <Toaster />
+            </ToastProvider>
+          </AuthProvider>
+        </div>
+        {!mounted && (
+          <div className="min-h-screen bg-white">
+            <div className="flex h-screen items-center justify-center">
+              <div className="text-black">Loading...</div>
+            </div>
+          </div>
+        )}
       </ThemeProvider>
     </QueryClientProvider>
   )
