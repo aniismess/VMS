@@ -56,12 +56,12 @@ const EDUCATION_LEVELS = [
   "Doctorate"
 ]
 
-export default function EditVolunteerPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditVolunteerPage({ params }: { params: { saiConnectId: string } }) {
   const router = useRouter()
   const { toast } = useToast()
   const [volunteer, setVolunteer] = useState<VolunteerData | null>(null)
-  const { id } = use(params)
-  const { data: volunteerData, isLoading } = useVolunteer(id)
+  const { saiConnectId } = params
+  const { data: volunteerData, isLoading } = useVolunteer(saiConnectId)
   const updateVolunteer = useUpdateVolunteer()
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function EditVolunteerPage({ params }: { params: Promise<{ id: st
     if (!volunteer) return
 
     try {
-      await updateVolunteer.mutateAsync({ id, data: volunteer })
+      await updateVolunteer.mutateAsync({ id: saiConnectId, data: volunteer })
       toast({
         title: "Success",
         description: "Volunteer updated successfully.",

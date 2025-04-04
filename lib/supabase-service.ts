@@ -52,29 +52,22 @@ export async function getVolunteers(): Promise<VolunteerData[]> {
 }
 
 export async function getVolunteerStats() {
-  const [{ data: volunteers, error }, { count: registeredCount }] = await Promise.all([
-    supabase.from("volunteers_volunteers").select("is_cancelled"),
-    supabase.from("registered_volunteers").select("*", { count: 'exact' })
+  const [
+    { count: totalCount },
+    { count: activeCount },
+    { count: cancelledCount },
+    { count: registeredCount }
+  ] = await Promise.all([
+    supabase.from("volunteers_volunteers").select("*", { count: 'exact', head: true }),
+    supabase.from("volunteers_volunteers").select("*", { count: 'exact', head: true }).eq("is_cancelled", false),
+    supabase.from("volunteers_volunteers").select("*", { count: 'exact', head: true }).eq("is_cancelled", true),
+    supabase.from("registered_volunteers").select("*", { count: 'exact', head: true })
   ])
 
-  if (error) {
-    console.error("Error fetching volunteer stats:", error)
-    return {
-      totalVolunteers: 0,
-      coming: 0,
-      notComing: 0,
-      registered: 0
-    }
-  }
-
-  const totalVolunteers = volunteers?.length || 0
-  const coming = volunteers?.filter((v) => !v.is_cancelled).length || 0
-  const notComing = volunteers?.filter((v) => v.is_cancelled).length || 0
-
   return {
-    totalVolunteers,
-    coming,
-    notComing,
+    totalVolunteers: totalCount || 0,
+    coming: activeCount || 0,
+    notComing: cancelledCount || 0,
     registered: registeredCount || 0
   }
 }
