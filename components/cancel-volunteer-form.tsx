@@ -57,7 +57,7 @@ export function CancelVolunteerForm({ token, onSuccess, dataSource }: CancelVolu
         return
       }
 
-      if (volunteer.is_cancelled) {
+      if (volunteer.is_cancelled === 'yes') {
         toast({
           title: "Already Cancelled",
           description: "This volunteer's service has already been cancelled.",

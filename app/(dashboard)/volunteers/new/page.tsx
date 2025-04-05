@@ -14,6 +14,7 @@ import { createVolunteerInDb } from "@/lib/supabase-service"
 import { Loader2, UserPlus, ArrowLeft } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { motion } from "framer-motion"
+import type { YesNoType } from "@/lib/supabase-service"
 
 const SSS_DISTRICTS = [
   "Amla",
@@ -138,24 +139,33 @@ export default function NewVolunteerPage() {
     }
 
     try {
-      await createVolunteerInDb({
+      const volunteerData = {
         sai_connect_id: saiConnectId,
         full_name: fullName,
         age: age ? Number.parseInt(age) : null,
         mobile_number: mobileNumber,
         aadhar_number: aadharNumber,
         sss_district: sssDistrict,
-        Gender: gender,
+        gender: gender,
         samiti_or_bhajan_mandli: samiti,
         education: education,
-        special_qualifications: qualifications,
-        sevadal_training_certificate: sevadalTraining,
-        past_prashanti_service: pastService,
-        is_cancelled: false,
+        special_qualifications: qualifications || null,
+        // Convert boolean values to YesNoType strings
+        sevadal_training_certificate: (sevadalTraining ? 'yes' : 'no') as YesNoType,
+        past_prashanti_service: (pastService ? 'yes' : 'no') as YesNoType,
+        is_cancelled: 'no' as YesNoType,
         serial_number: null,
         prashanti_arrival: null,
-        prashanti_departure: null
-      })
+        prashanti_departure: null,
+        duty_point: null,
+        last_service_location: null,
+        other_service_location: null,
+        created_by_id: null
+      };
+
+      console.log('Submitting volunteer data:', volunteerData);
+      await createVolunteerInDb(volunteerData);
+
       toast({
         title: "Success!",
         description: `Volunteer ${fullName} has been added successfully.`,

@@ -33,6 +33,7 @@ export default function DashboardPage() {
     totalVolunteers: 0,
     coming: 0,
     notComing: 0,
+    registered: 0,
   })
   const [recentVolunteers, setRecentVolunteers] = useState<VolunteerData[]>([])
   const [registeredCount, setRegisteredCount] = useState(0)
@@ -51,6 +52,10 @@ export default function DashboardPage() {
         getVolunteers(),
         supabase.from('registered_volunteers').select('*', { count: 'exact', head: true })
       ])
+
+      console.log('Stats:', statsResult)
+      console.log('Volunteers:', volunteersResult)
+      console.log('Registered count:', count)
 
       setDbStats(statsResult)
       setRecentVolunteers(volunteersResult)
@@ -236,24 +241,24 @@ export default function DashboardPage() {
         className="grid gap-4 md:grid-cols-4"
       >
         <Card className="border-sai-orange/20 hover:border-sai-orange/30 transition-all duration-300 hover:shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Volunteers</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Volunteers</CardTitle>
             <Users className="h-4 w-4 text-sai-orange" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dbStats.totalVolunteers}</div>
-              </CardContent>
-            </Card>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dbStats.totalVolunteers}</div>
+          </CardContent>
+        </Card>
 
         <Card className="border-sai-orange/20 hover:border-sai-orange/30 transition-all duration-300 hover:shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active</CardTitle>
-                <UserCheck className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-500">{dbStats.coming}</div>
-              </CardContent>
-            </Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">{dbStats.coming}</div>
+          </CardContent>
+        </Card>
 
         <Card className="border-sai-orange/20 hover:border-sai-orange/30 transition-all duration-300 hover:shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -261,19 +266,19 @@ export default function DashboardPage() {
             <UserPlus className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{registeredCount}</div>
+            <div className="text-2xl font-bold text-blue-500">{dbStats.registered}</div>
           </CardContent>
         </Card>
 
         <Card className="border-sai-orange/20 hover:border-sai-orange/30 transition-all duration-300 hover:shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
-                <UserX className="h-4 w-4 text-red-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-500">{dbStats.notComing}</div>
-              </CardContent>
-            </Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
+            <UserX className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">{dbStats.notComing}</div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       <motion.div
@@ -326,7 +331,7 @@ export default function DashboardPage() {
                   {recentVolunteers
                     .filter(volunteer => {
                       const searchTerm = activeSearch.toLowerCase()
-                      return !volunteer.is_cancelled && 
+                      return volunteer.is_cancelled === 'no' && 
                         !volunteer.registered_volunteers && 
                         (!searchTerm || 
                           volunteer.full_name?.toLowerCase().includes(searchTerm) ||
@@ -344,7 +349,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   const activeVolunteers = recentVolunteers.filter(volunteer => {
                     const searchTerm = activeSearch.toLowerCase()
-                    return !volunteer.is_cancelled && 
+                    return volunteer.is_cancelled === 'no' && 
                       !volunteer.registered_volunteers && 
                       (!searchTerm || 
                         volunteer.full_name?.toLowerCase().includes(searchTerm) ||
@@ -406,7 +411,8 @@ export default function DashboardPage() {
                   {recentVolunteers
                     .filter(volunteer => {
                       const searchTerm = registeredSearch.toLowerCase()
-                      return volunteer.registered_volunteers && 
+                      return volunteer.is_cancelled === 'no' && 
+                        volunteer.registered_volunteers && 
                         (!searchTerm || 
                           volunteer.full_name?.toLowerCase().includes(searchTerm) ||
                           volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
@@ -423,7 +429,8 @@ export default function DashboardPage() {
                 onClick={() => {
                   const registeredVolunteers = recentVolunteers.filter(volunteer => {
                     const searchTerm = registeredSearch.toLowerCase()
-                    return volunteer.registered_volunteers && 
+                    return volunteer.is_cancelled === 'no' && 
+                      volunteer.registered_volunteers && 
                       (!searchTerm || 
                         volunteer.full_name?.toLowerCase().includes(searchTerm) ||
                         volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
@@ -484,7 +491,7 @@ export default function DashboardPage() {
                   {recentVolunteers
                     .filter(volunteer => {
                       const searchTerm = cancelledSearch.toLowerCase()
-                      return volunteer.is_cancelled && 
+                      return volunteer.is_cancelled === 'yes' && 
                         (!searchTerm || 
                           volunteer.full_name?.toLowerCase().includes(searchTerm) ||
                           volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||
@@ -501,7 +508,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   const cancelledVolunteers = recentVolunteers.filter(volunteer => {
                     const searchTerm = cancelledSearch.toLowerCase()
-                    return volunteer.is_cancelled && 
+                    return volunteer.is_cancelled === 'yes' && 
                       (!searchTerm || 
                         volunteer.full_name?.toLowerCase().includes(searchTerm) ||
                         volunteer.mobile_number?.toLowerCase().includes(searchTerm) ||

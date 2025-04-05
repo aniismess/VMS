@@ -95,7 +95,7 @@ export function RegisterVolunteerForm({ onRegister }: RegisterVolunteerFormProps
         return
       }
 
-      if (volunteers.is_cancelled) {
+      if (volunteers.is_cancelled === 'yes') {
         setError('Volunteer has been cancelled')
         return
       }
@@ -271,27 +271,4 @@ export function RegisterVolunteerForm({ onRegister }: RegisterVolunteerFormProps
       </DialogContent>
     </Dialog>
   )
-}
-
-const getStatusBadge = (status: string | boolean | undefined, isRegistered: boolean) => {
-  if (isRegistered) {
-    return <Badge className="bg-blue-500 text-white">Registered</Badge>
-  }
-
-  if (typeof status === "boolean") {
-    return status ? <Badge variant="destructive">Cancelled</Badge> : <Badge className="bg-green-500 text-white">Active</Badge>
-  }
-
-  switch (status) {
-    case "coming":
-      return <Badge className="bg-green-500 text-white">Coming</Badge>
-    case "not-coming":
-      return <Badge variant="destructive">Not Coming</Badge>
-    case "pending":
-      return <Badge variant="outline">Pending</Badge>
-    case "deleted":
-      return <Badge variant="destructive">Deleted</Badge>
-    default:
-      return <Badge variant="outline">{status}</Badge>
-  }
 }

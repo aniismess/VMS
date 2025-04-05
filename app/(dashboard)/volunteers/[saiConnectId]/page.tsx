@@ -284,8 +284,8 @@ export default function VolunteerDetailsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch 
                     id="sevadal" 
-                    checked={editedVolunteer?.sevadal_training_certificate} 
-                    onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, sevadal_training_certificate: checked })}
+                    checked={editedVolunteer?.sevadal_training_certificate === 'yes'} 
+                    onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, sevadal_training_certificate: checked ? 'yes' : 'no' })}
                     disabled={!isEditing}
                     className="data-[state=checked]:bg-sai-orange"
                   />
@@ -294,8 +294,8 @@ export default function VolunteerDetailsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch 
                     id="past-service" 
-                    checked={editedVolunteer?.past_prashanti_service} 
-                    onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, past_prashanti_service: checked })}
+                    checked={editedVolunteer?.past_prashanti_service === 'yes'} 
+                    onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, past_prashanti_service: checked ? 'yes' : 'no' })}
                     disabled={!isEditing}
                     className="data-[state=checked]:bg-sai-orange"
                   />

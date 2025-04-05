@@ -326,8 +326,8 @@ export function VolunteerProfileDialog({
               <div className="flex items-center space-x-2">
                 <Switch
                   id="sevadal_training"
-                  checked={editedVolunteer.sevadal_training_certificate}
-                  onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, sevadal_training_certificate: checked })}
+                  checked={editedVolunteer.sevadal_training_certificate === 'yes'}
+                  onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, sevadal_training_certificate: checked ? 'yes' : 'no' })}
                   disabled={!isEditing}
                 />
                 <Label htmlFor="sevadal_training">Sevadal Training Certificate</Label>
@@ -335,8 +335,8 @@ export function VolunteerProfileDialog({
               <div className="flex items-center space-x-2">
                 <Switch
                   id="past_service"
-                  checked={editedVolunteer.past_prashanti_service}
-                  onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, past_prashanti_service: checked })}
+                  checked={editedVolunteer.past_prashanti_service === 'yes'}
+                  onCheckedChange={(checked) => setEditedVolunteer({ ...editedVolunteer, past_prashanti_service: checked ? 'yes' : 'no' })}
                   disabled={!isEditing}
                 />
                 <Label htmlFor="past_service">Past Prashanti Service</Label>

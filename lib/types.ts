@@ -1,23 +1,25 @@
+export type YesNoType = 'yes' | 'no'
+
 export interface VolunteerData {
   serial_number: string | null
   full_name: string | null
   age: number | null
   aadhar_number: string | null
   sai_connect_id: string
-  sevadal_training_certificate: boolean
+  sevadal_training_certificate: YesNoType
   mobile_number: string | null
   sss_district: string | null
   gender: string | null
   samiti_or_bhajan_mandli: string | null
   education: string | null
   special_qualifications: string | null
-  past_prashanti_service: boolean
+  past_prashanti_service: YesNoType
   last_service_location: string | null
   other_service_location: string | null
   prashanti_arrival: string | null
   prashanti_departure: string | null
   duty_point: string | null
-  is_cancelled: boolean
+  is_cancelled: YesNoType
   created_by_id: string | null
   registered_volunteers: {
     sai_connect_id: string

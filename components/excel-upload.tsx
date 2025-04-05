@@ -12,6 +12,7 @@ import { Loader2, Upload } from "lucide-react"
 import * as XLSX from "xlsx"
 import { supabase } from "@/lib/supabase"
 import { Progress } from "@/components/ui/progress"
+import { YesNoType } from "@/lib/types"
 
 interface VolunteerData {
   serial_number?: string;
@@ -19,19 +20,19 @@ interface VolunteerData {
   age?: number | null;
   aadhar_number?: string;
   sai_connect_id?: string;
-  sevadal_training_certificate: boolean;
+  sevadal_training_certificate: YesNoType;
   mobile_number?: string;
   sss_district?: string;
   samiti_or_bhajan_mandli?: string;
   education?: string;
   special_qualifications?: string;
-  past_prashanti_service: boolean;
+  past_prashanti_service: YesNoType;
   last_service_location?: string;
   other_service_location?: string;
   prashanti_arrival?: string | null;
   prashanti_departure?: string | null;
   duty_point?: string;
-  is_cancelled: boolean;
+  is_cancelled: YesNoType;
   [key: string]: any; // Allow dynamic string keys
 }
 
@@ -226,16 +227,16 @@ function transformToDatabaseFormat(volunteer: Partial<VolunteerData>): Partial<D
     full_name: volunteer.full_name,
     age: volunteer.age,
     aadhar_number: volunteer.aadhar_number,
-    sevadal_training_certificate: volunteer.sevadal_training_certificate ?? false,
+    sevadal_training_certificate: volunteer.sevadal_training_certificate ? 'yes' : 'no',
     mobile_number: volunteer.mobile_number,
     sss_district: volunteer.sss_district,
     samiti_or_bhajan_mandli: volunteer.samiti_or_bhajan_mandli,
     education: volunteer.education,
     special_qualifications: volunteer.special_qualifications,
-    past_prashanti_service: volunteer.past_prashanti_service ?? false,
+    past_prashanti_service: volunteer.past_prashanti_service ? 'yes' : 'no',
     prashanti_arrival: volunteer.prashanti_arrival,
     prashanti_departure: volunteer.prashanti_departure,
-    is_cancelled: volunteer.is_cancelled ?? false
+    is_cancelled: volunteer.is_cancelled ? 'yes' : 'no'
   };
 
   // Remove undefined and null values
@@ -386,9 +387,9 @@ export function ExcelUpload({ onSuccess }: { onSuccess?: () => void }) {
       rows.forEach((row, index) => {
         try {
           const volunteer: Partial<VolunteerData> = {
-            sevadal_training_certificate: false,
-            past_prashanti_service: false,
-            is_cancelled: false
+            sevadal_training_certificate: 'no',
+            past_prashanti_service: 'no',
+            is_cancelled: 'no'
           }
 
           // Process each cell based on column mapping

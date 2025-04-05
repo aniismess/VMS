@@ -6,31 +6,36 @@ export type RegisteredVolunteer = {
   service_location: string | null
 }
 
+export type YesNoType = 'yes' | 'no'
+
 export type VolunteerData = {
   serial_number: string | null
   full_name: string | null
   age: number | null
   aadhar_number: string | null
   sai_connect_id: string
-  sevadal_training_certificate: boolean
+  sevadal_training_certificate: YesNoType
   mobile_number: string | null
   sss_district: string | null
   gender: string | null
   samiti_or_bhajan_mandli: string | null
   education: string | null
   special_qualifications: string | null
-  past_prashanti_service: boolean
+  past_prashanti_service: YesNoType
   last_service_location: string | null
   other_service_location: string | null
   prashanti_arrival: string | null
   prashanti_departure: string | null
   duty_point: string | null
-  is_cancelled: boolean
+  is_cancelled: YesNoType
   created_by_id: string | null
+  created_at?: string
+  updated_at?: string
   registered_volunteers: RegisteredVolunteer | null
 }
 
 export async function getVolunteers(): Promise<VolunteerData[]> {
+  console.log('Fetching volunteers...')
   const { data, error } = await supabase
     .from("volunteers_volunteers")
     .select(`
@@ -41,58 +46,172 @@ export async function getVolunteers(): Promise<VolunteerData[]> {
         service_location
       )
     `)
-    .order("sai_connect_id", { ascending: false })
+    .order("created_at", { ascending: false })
 
   if (error) {
     console.error("Error fetching volunteers:", error)
     throw error
   }
 
+  // Log each volunteer's status
+  data?.forEach(volunteer => {
+    console.log(`Volunteer ${volunteer.sai_connect_id}:`, {
+      is_cancelled: volunteer.is_cancelled,
+      has_registered: !!volunteer.registered_volunteers,
+      status: volunteer.is_cancelled === 'yes' ? 'Cancelled' :
+              volunteer.registered_volunteers ? 'Registered' : 'Active'
+    })
+  })
+
+  console.log('Total volunteers fetched:', data?.length || 0)
   return data || []
 }
 
 export async function getVolunteerStats() {
+  console.log('Fetching volunteer stats...')
+  
   const [
     { count: totalCount },
     { count: activeCount },
     { count: cancelledCount },
     { count: registeredCount }
   ] = await Promise.all([
-    supabase.from("volunteers_volunteers").select("*", { count: 'exact', head: true }),
-    supabase.from("volunteers_volunteers").select("*", { count: 'exact', head: true }).eq("is_cancelled", false),
-    supabase.from("volunteers_volunteers").select("*", { count: 'exact', head: true }).eq("is_cancelled", true),
-    supabase.from("registered_volunteers").select("*", { count: 'exact', head: true })
+    // Total volunteers
+    supabase
+      .from("volunteers_volunteers")
+      .select("*", { count: 'exact', head: true }),
+    
+    // Active volunteers (not cancelled and not registered)
+    supabase
+      .from("volunteers_volunteers")
+      .select(`
+        *,
+        registered_volunteers!left(sai_connect_id)
+      `, { count: 'exact', head: true })
+      .eq("is_cancelled", 'no')
+      .is("registered_volunteers.sai_connect_id", null),
+    
+    // Cancelled volunteers
+    supabase
+      .from("volunteers_volunteers")
+      .select("*", { count: 'exact', head: true })
+      .eq("is_cancelled", 'yes'),
+    
+    // Registered volunteers
+    supabase
+      .from("volunteers_volunteers")
+      .select(`
+        *,
+        registered_volunteers!inner(sai_connect_id)
+      `, { count: 'exact', head: true })
+      .eq("is_cancelled", 'no')
   ])
 
-  return {
+  const stats = {
     totalVolunteers: totalCount || 0,
     coming: activeCount || 0,
     notComing: cancelledCount || 0,
     registered: registeredCount || 0
   }
+
+  console.log('Volunteer stats:', stats)
+  return stats
 }
 
-export async function createVolunteerInDb(volunteer: VolunteerData) {
+export async function createVolunteerInDb(volunteer: Omit<VolunteerData, 'registered_volunteers'>) {
+  // Extract all fields to ensure proper type conversion
+  const {
+    sai_connect_id,
+    full_name,
+    age,
+    mobile_number,
+    aadhar_number,
+    sss_district,
+    gender,
+    samiti_or_bhajan_mandli,
+    education,
+    special_qualifications,
+    sevadal_training_certificate,
+    past_prashanti_service,
+    is_cancelled,
+    serial_number,
+    prashanti_arrival,
+    prashanti_departure,
+    duty_point,
+    last_service_location,
+    other_service_location,
+    created_by_id
+  } = volunteer;
+
+  // Helper function to convert to YesNoType with proper type checking
+  const toYesNo = (value: unknown): YesNoType => {
+    if (typeof value === 'boolean') {
+      return value ? 'yes' : 'no';
+    }
+    return value === 'yes' ? 'yes' : 'no';
+  };
+
+  // Create a new object with explicit type conversions
+  const formattedVolunteer = {
+    sai_connect_id,
+    full_name,
+    age,
+    mobile_number,
+    aadhar_number,
+    sss_district,
+    gender,
+    samiti_or_bhajan_mandli,
+    education,
+    special_qualifications,
+    // Use the helper function for YesNoType fields
+    sevadal_training_certificate: toYesNo(sevadal_training_certificate),
+    past_prashanti_service: toYesNo(past_prashanti_service),
+    is_cancelled: toYesNo(is_cancelled),
+    serial_number,
+    prashanti_arrival,
+    prashanti_departure,
+    duty_point,
+    last_service_location,
+    other_service_location,
+    created_by_id
+  };
+
+  console.log('Creating volunteer with formatted data:', formattedVolunteer);
+
   const { data, error } = await supabase
     .from("volunteers_volunteers")
-    .insert([volunteer])
-    .select()
+    .insert([formattedVolunteer])
+    .select();
 
   if (error) {
-    console.error("Error creating volunteer:", error)
-    throw error
+    console.error("Error creating volunteer:", error);
+    throw error;
   }
 
-  return data?.[0]
+  return data?.[0];
 }
 
 export async function updateVolunteerInDb(id: string, updates: Partial<VolunteerData>) {
   // Remove registered_volunteers from updates as it's a relationship, not a column
-  const { registered_volunteers, ...volunteerUpdates } = updates
+  const { registered_volunteers, ...updateFields } = updates
+
+  // Convert boolean fields to 'yes'/'no'
+  const formattedUpdates = {
+    ...updateFields,
+    ...(updates.sevadal_training_certificate !== undefined && {
+      sevadal_training_certificate: updates.sevadal_training_certificate ? 'yes' : 'no'
+    }),
+    ...(updates.past_prashanti_service !== undefined && {
+      past_prashanti_service: updates.past_prashanti_service ? 'yes' : 'no'
+    }),
+    ...(updates.is_cancelled !== undefined && {
+      is_cancelled: updates.is_cancelled ? 'yes' : 'no'
+    })
+  }
 
   const { data, error } = await supabase
     .from("volunteers_volunteers")
-    .update(volunteerUpdates)
+    .update(formattedUpdates)
     .eq("sai_connect_id", id)
     .select(`
       *,
@@ -177,7 +296,7 @@ export async function cancelVolunteerInDb(saiConnectId: string) {
     // Now cancel the volunteer
     const { error: updateError } = await supabase
       .from('volunteers_volunteers')
-      .update({ is_cancelled: true })
+      .update({ is_cancelled: 'yes' })
       .eq('sai_connect_id', saiConnectId)
 
     if (updateError) {

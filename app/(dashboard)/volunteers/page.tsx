@@ -39,11 +39,14 @@ export default function VolunteersPage() {
       if (statusFilter === "active" && (volunteer.is_cancelled === 'yes' || volunteer.registered_volunteers)) {
         return false
       }
-      if (statusFilter === "registered" && !volunteer.registered_volunteers) {
+      if (statusFilter === "registered" && (!volunteer.registered_volunteers || volunteer.is_cancelled === 'yes')) {
         return false
       }
       if (statusFilter === "cancelled" && volunteer.is_cancelled !== 'yes') {
         return false
+      }
+      if (statusFilter === "all") {
+        return true
       }
 
       // Search filter
@@ -308,8 +311,9 @@ export default function VolunteersPage() {
                   className={cn(
                     "cursor-pointer hover:bg-accent/50 transition-colors",
                     {
-                      "bg-red-50": volunteer.is_cancelled,
-                      "bg-blue-50": volunteer.registered_volunteers
+                      "bg-red-50": volunteer.is_cancelled === 'yes',
+                      "bg-blue-50": volunteer.registered_volunteers && volunteer.is_cancelled !== 'yes',
+                      "bg-green-50": !volunteer.registered_volunteers && volunteer.is_cancelled !== 'yes'
                     }
                   )}
                   onClick={() => handleVolunteerClick(volunteer)}
@@ -318,7 +322,7 @@ export default function VolunteersPage() {
                   <TableCell>{volunteer.full_name}</TableCell>
                   <TableCell>{volunteer.mobile_number || "N/A"}</TableCell>
                   <TableCell>
-                    {volunteer.is_cancelled ? (
+                    {volunteer.is_cancelled === 'yes' ? (
                       <Badge variant="destructive">Cancelled</Badge>
                     ) : volunteer.registered_volunteers ? (
                       <Badge variant="default" className="bg-blue-500 hover:bg-blue-600">Registered</Badge>
