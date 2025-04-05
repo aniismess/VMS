@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/contexts/auth-context"
 import { Toaster } from "@/components/ui/toaster"
-import { ToastProvider } from "@/contexts/toast-context"
 import { useEffect, useState } from "react"
 
 const queryClient = new QueryClient({
@@ -29,12 +28,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ToastProvider>
-            <div className={mounted ? "" : "hidden"}>
-              {children}
-              <Toaster />
-            </div>
-          </ToastProvider>
+          <div className={mounted ? "" : "hidden"}>
+            {children}
+            <Toaster />
+          </div>
         </AuthProvider>
       </QueryClientProvider>
       {!mounted && (
