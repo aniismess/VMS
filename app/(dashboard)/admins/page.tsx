@@ -181,6 +181,9 @@ export default function AdminsPage() {
         throw new Error("Failed to create user")
       }
 
+      // Wait for a short time to ensure the user is created in the auth system
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
       // Add to admin_users table
       const { error: adminError } = await supabase
         .from("admin_users")
@@ -192,7 +195,11 @@ export default function AdminsPage() {
           }
         ])
 
-      if (adminError) throw adminError
+      if (adminError) {
+        // If failed to add to admin_users, delete the auth user
+        await supabase.auth.admin.deleteUser(authData.user.id)
+        throw adminError
+      }
 
       // If successful, increment email count
       incrementEmailCount()
@@ -218,7 +225,7 @@ export default function AdminsPage() {
       toast({
         title: "Error",
         description: error.message || "Could not add admin. Please try again.",
-        duration: 4000,
+        variant: "destructive",
       })
     } finally {
       setIsAddingAdmin(false)
