@@ -164,14 +164,15 @@ export default function AdminsPage() {
         return
       }
 
-      // Create the user using regular auth signup
+      // Create new user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newAdminEmail,
         password: newAdminPassword,
         options: {
           data: {
             is_admin: true
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/login`
         }
       })
 
@@ -181,23 +182,42 @@ export default function AdminsPage() {
         throw new Error("Failed to create user")
       }
 
-      // Wait for a short time to ensure the user is created in the auth system
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Wait for user to be created in auth system
+      let retries = 0
+      const maxRetries = 5
+      let userCreated = false
 
-      // Add to admin_users table
+      while (retries < maxRetries && !userCreated) {
+        // Try to sign in with the credentials to verify user exists
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: newAdminEmail,
+          password: newAdminPassword,
+        })
+
+        if (!error && data.user) {
+          userCreated = true
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          retries++
+        }
+      }
+
+      if (!userCreated) {
+        throw new Error("Failed to verify user creation")
+      }
+
+      // Now add to admin_users table
       const { error: adminError } = await supabase
         .from("admin_users")
         .insert([
           {
             id: authData.user.id,
-            email: authData.user.email,
+            email: newAdminEmail,
             created_by: user?.id
           }
         ])
 
       if (adminError) {
-        // If failed to add to admin_users, delete the auth user
-        await supabase.auth.admin.deleteUser(authData.user.id)
         throw adminError
       }
 
@@ -206,7 +226,7 @@ export default function AdminsPage() {
 
       toast({
         title: "Success",
-        description: "New admin added successfully. A confirmation email has been sent.",
+        description: "New admin added successfully. Please check email for confirmation.",
         duration: 4000,
       })
 
