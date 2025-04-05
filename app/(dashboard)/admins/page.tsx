@@ -44,8 +44,16 @@ const incrementEmailCount = () => {
   localStorage.setItem(EMAIL_LIMIT_KEY, String(count + 1))
 }
 
+// Add new interface for pending admins
+interface PendingAdmin {
+  email: string
+  userId: string
+  created_at: string
+}
+
 export default function AdminsPage() {
   const [admins, setAdmins] = useState<Admin[]>([])
+  const [pendingAdmins, setPendingAdmins] = useState<PendingAdmin[]>([])
   const [newAdminEmail, setNewAdminEmail] = useState("")
   const [newAdminPassword, setNewAdminPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -76,11 +84,27 @@ export default function AdminsPage() {
     }
   }
 
+  // Add function to load pending admins
+  const fetchPendingAdmins = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("pending_admin_users")
+        .select("*")
+        .order("created_at", { ascending: true })
+
+      if (error) throw error
+      setPendingAdmins(data || [])
+    } catch (error) {
+      console.error("Error fetching pending admins:", error)
+    }
+  }
+
   useEffect(() => {
     fetchAdmins()
+    fetchPendingAdmins()
 
-    // Set up real-time subscription
-    const channel = supabase
+    // Set up real-time subscription for both tables
+    const adminChannel = supabase
       .channel("admin_users_changes")
       .on(
         "postgres_changes",
@@ -95,8 +119,24 @@ export default function AdminsPage() {
       )
       .subscribe()
 
+    const pendingChannel = supabase
+      .channel("pending_admin_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pending_admin_users",
+        },
+        () => {
+          fetchPendingAdmins()
+        }
+      )
+      .subscribe()
+
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(adminChannel)
+      supabase.removeChannel(pendingChannel)
     }
   }, [])
 
@@ -147,17 +187,34 @@ export default function AdminsPage() {
     }
 
     try {
-      // Check if email already exists in admin_users
-      const { data: existingAdmin } = await supabase
-        .from("admin_users")
-        .select("email")
-        .eq("email", newAdminEmail)
-        .single()
+      // Check if email already exists in admin_users or pending_admin_users
+      const [{ data: existingAdmin }, { data: pendingAdmin }] = await Promise.all([
+        supabase
+          .from("admin_users")
+          .select("email")
+          .eq("email", newAdminEmail)
+          .single(),
+        supabase
+          .from("pending_admin_users")
+          .select("email")
+          .eq("email", newAdminEmail)
+          .single()
+      ])
 
       if (existingAdmin) {
         toast({
           title: "Error",
           description: "This email is already registered as an admin.",
+          variant: "destructive",
+        })
+        setIsAddingAdmin(false)
+        return
+      }
+
+      if (pendingAdmin) {
+        toast({
+          title: "Error",
+          description: "This email is already pending admin confirmation.",
           variant: "destructive",
         })
         setIsAddingAdmin(false)
@@ -182,51 +239,25 @@ export default function AdminsPage() {
         throw new Error("Failed to create user")
       }
 
-      // Wait for user to be created in auth system
-      let retries = 0
-      const maxRetries = 5
-      let userCreated = false
-
-      while (retries < maxRetries && !userCreated) {
-        // Try to sign in with the credentials to verify user exists
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: newAdminEmail,
-          password: newAdminPassword,
-        })
-
-        if (!error && data.user) {
-          userCreated = true
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          retries++
-        }
-      }
-
-      if (!userCreated) {
-        throw new Error("Failed to verify user creation")
-      }
-
-      // Now add to admin_users table
-      const { error: adminError } = await supabase
-        .from("admin_users")
+      // Add to pending_admin_users table
+      const { error: pendingError } = await supabase
+        .from("pending_admin_users")
         .insert([
           {
-            id: authData.user.id,
             email: newAdminEmail,
+            user_id: authData.user.id,
             created_by: user?.id
           }
         ])
 
-      if (adminError) {
-        throw adminError
-      }
+      if (pendingError) throw pendingError
 
       // If successful, increment email count
       incrementEmailCount()
 
       toast({
         title: "Success",
-        description: "New admin added successfully. Please check email for confirmation.",
+        description: "Admin invitation sent. User must confirm their email to complete setup.",
         duration: 4000,
       })
 
@@ -327,7 +358,6 @@ export default function AdminsPage() {
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-sai-orange" />
               Admin Management
-              {/* Add email limit indicator */}
               <div className="text-sm text-muted-foreground flex items-center gap-2">
                 <Mail className="h-4 w-4" />
                 {DAILY_EMAIL_LIMIT - Number(localStorage.getItem(EMAIL_LIMIT_KEY) || 0)} emails remaining today
@@ -397,27 +427,56 @@ export default function AdminsPage() {
               </Button>
             </form>
 
-            <div className="space-y-4">
-              {admins.map((admin) => (
-                <div
-                  key={admin.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{admin.email}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Added: {new Date(admin.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleRemoveAdmin(admin.id)}
-                    disabled={admin.id === user?.id}
-                  >
-                    Remove
-                  </Button>
+            {/* Add pending admins section */}
+            {pendingAdmins.length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold mb-4">Pending Admin Confirmations</h3>
+                <div className="space-y-4">
+                  {pendingAdmins.map((pending) => (
+                    <div
+                      key={pending.userId}
+                      className="flex items-center justify-between p-4 border rounded-lg bg-muted/20"
+                    >
+                      <div>
+                        <p className="font-medium">{pending.email}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Invited: {new Date(pending.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Awaiting email confirmation
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* Existing admins section */}
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-4">Active Admins</h3>
+              <div className="space-y-4">
+                {admins.map((admin) => (
+                  <div
+                    key={admin.id}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">{admin.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Added: {new Date(admin.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleRemoveAdmin(admin.id)}
+                      disabled={admin.id === user?.id}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
