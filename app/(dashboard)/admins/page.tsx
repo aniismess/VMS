@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Shield } from "lucide-react"
+import { Loader2, Shield, Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"
+import { Label } from "@/components/ui/label"
 
 interface Admin {
   id: string
@@ -17,10 +18,37 @@ interface Admin {
   created_by?: string
 }
 
+// Add email tracking
+const EMAIL_LIMIT_KEY = 'gmail_daily_email_count'
+const EMAIL_LIMIT_DATE_KEY = 'gmail_count_date'
+const DAILY_EMAIL_LIMIT = 500
+
+// Function to check and update email count
+const checkEmailLimit = () => {
+  const today = new Date().toDateString()
+  const lastDate = localStorage.getItem(EMAIL_LIMIT_DATE_KEY)
+  const count = Number(localStorage.getItem(EMAIL_LIMIT_KEY) || 0)
+
+  if (lastDate !== today) {
+    localStorage.setItem(EMAIL_LIMIT_DATE_KEY, today)
+    localStorage.setItem(EMAIL_LIMIT_KEY, '0')
+    return true
+  }
+
+  return count < DAILY_EMAIL_LIMIT
+}
+
+// Function to increment email count
+const incrementEmailCount = () => {
+  const count = Number(localStorage.getItem(EMAIL_LIMIT_KEY) || 0)
+  localStorage.setItem(EMAIL_LIMIT_KEY, String(count + 1))
+}
+
 export default function AdminsPage() {
   const [admins, setAdmins] = useState<Admin[]>([])
   const [newAdminEmail, setNewAdminEmail] = useState("")
   const [newAdminPassword, setNewAdminPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isAddingAdmin, setIsAddingAdmin] = useState(false)
   const { toast } = useToast()
@@ -72,17 +100,79 @@ export default function AdminsPage() {
     }
   }, [])
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePassword = (password: string) => {
+    return password.length >= 6
+  }
+
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsAddingAdmin(true)
 
+    // Check email limit
+    if (!checkEmailLimit()) {
+      toast({
+        title: "Email Limit Reached",
+        description: "Daily Gmail sending limit reached. Please try again tomorrow.",
+        variant: "destructive",
+      })
+      setIsAddingAdmin(false)
+      return
+    }
+
+    // Validate email
+    if (!validateEmail(newAdminEmail)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      })
+      setIsAddingAdmin(false)
+      return
+    }
+
+    // Validate password
+    if (!validatePassword(newAdminPassword)) {
+      toast({
+        title: "Invalid Password",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      })
+      setIsAddingAdmin(false)
+      return
+    }
+
     try {
-      // 1. Create the user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      // Check if email already exists in admin_users
+      const { data: existingAdmin } = await supabase
+        .from("admin_users")
+        .select("email")
+        .eq("email", newAdminEmail)
+        .single()
+
+      if (existingAdmin) {
+        toast({
+          title: "Error",
+          description: "This email is already registered as an admin.",
+          variant: "destructive",
+        })
+        setIsAddingAdmin(false)
+        return
+      }
+
+      // Create the user using regular auth signup
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newAdminEmail,
         password: newAdminPassword,
-        email_confirm: true, // Auto-confirm email
-        user_metadata: { is_admin: true }
+        options: {
+          data: {
+            is_admin: true
+          }
+        }
       })
 
       if (authError) throw authError
@@ -91,7 +181,7 @@ export default function AdminsPage() {
         throw new Error("Failed to create user")
       }
 
-      // 2. Add to admin_users table
+      // Add to admin_users table
       const { error: adminError } = await supabase
         .from("admin_users")
         .insert([
@@ -104,10 +194,21 @@ export default function AdminsPage() {
 
       if (adminError) throw adminError
 
+      // If successful, increment email count
+      incrementEmailCount()
+
       toast({
         title: "Success",
-        description: "New admin added successfully.",
+        description: "New admin added successfully. A confirmation email has been sent.",
         duration: 4000,
+      })
+
+      // Show remaining emails
+      const remainingEmails = DAILY_EMAIL_LIMIT - Number(localStorage.getItem(EMAIL_LIMIT_KEY) || 0)
+      toast({
+        title: "Email Limit Status",
+        description: `${remainingEmails} emails remaining for today`,
+        duration: 2000,
       })
 
       setNewAdminEmail("")
@@ -158,11 +259,6 @@ export default function AdminsPage() {
 
       if (removeError) throw removeError
 
-      // Delete user from auth
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(adminId)
-
-      if (deleteError) throw deleteError
-
       toast({
         title: "Success",
         description: "Admin removed successfully.",
@@ -204,41 +300,74 @@ export default function AdminsPage() {
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-sai-orange" />
               Admin Management
+              {/* Add email limit indicator */}
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                {DAILY_EMAIL_LIMIT - Number(localStorage.getItem(EMAIL_LIMIT_KEY) || 0)} emails remaining today
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAddAdmin} className="space-y-4 mb-6">
-              <div className="flex gap-4">
-                <Input
-                  type="email"
-                  placeholder="New admin email"
-                  value={newAdminEmail}
-                  onChange={(e) => setNewAdminEmail(e.target.value)}
-                  required
-                />
-                <Input
-                  type="password"
-                  placeholder="New admin password"
-                  value={newAdminPassword}
-                  onChange={(e) => setNewAdminPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-                <Button 
-                  type="submit" 
-                  disabled={isAddingAdmin}
-                  className="bg-sai-orange hover:bg-sai-orange-dark"
-                >
-                  {isAddingAdmin ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    "Add Admin"
-                  )}
-                </Button>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="New admin email"
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                      className="pl-9"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="New admin password"
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      className="pl-9 pr-9"
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Must be at least 6 characters</p>
+                </div>
               </div>
+              <Button 
+                type="submit" 
+                disabled={isAddingAdmin}
+                className="w-full bg-sai-orange hover:bg-sai-orange-dark"
+              >
+                {isAddingAdmin ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding Admin...
+                  </>
+                ) : (
+                  "Add Admin"
+                )}
+              </Button>
             </form>
 
             <div className="space-y-4">

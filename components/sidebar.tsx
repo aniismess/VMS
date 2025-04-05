@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, UserPlus, LogOut, Menu, Sun, Moon, Shield } from "lucide-react"
+import { LayoutDashboard, Users, UserPlus, LogOut, Menu, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import Image from "next/image"
-import { useTheme } from "next-themes"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const navItems = [
   {
@@ -42,7 +42,6 @@ export function Sidebar() {
   const pathname = usePathname()
   const { logout, user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
 
   const handleLogout = async () => {
     await logout()
@@ -71,16 +70,7 @@ export function Sidebar() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="text-white hover:bg-white/10 hover:text-white border border-white/20 hover:border-white/40 transition-all duration-200"
-              >
-                <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                <span className="sr-only">Toggle theme</span>
-              </Button>
+              <ThemeToggle variant="ghost" />
               <Sheet open={isOpen} onOpenChange={setIsOpen}>
                 <SheetTrigger asChild>
                   <Button 
