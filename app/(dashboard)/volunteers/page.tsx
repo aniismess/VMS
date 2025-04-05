@@ -36,13 +36,13 @@ export default function VolunteersPage() {
   const filteredVolunteers = useMemo(() => {
     return volunteers.filter((volunteer) => {
       // Status filter
-      if (statusFilter === "active" && (volunteer.is_cancelled || volunteer.registered_volunteers)) {
+      if (statusFilter === "active" && (volunteer.is_cancelled === 'yes' || volunteer.registered_volunteers)) {
         return false
       }
       if (statusFilter === "registered" && !volunteer.registered_volunteers) {
         return false
       }
-      if (statusFilter === "cancelled" && !volunteer.is_cancelled) {
+      if (statusFilter === "cancelled" && volunteer.is_cancelled !== 'yes') {
         return false
       }
 
