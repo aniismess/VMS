@@ -221,7 +221,7 @@ export default function AdminsPage() {
         return
       }
 
-      // Create new user
+      // First create the user in auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newAdminEmail,
         password: newAdminPassword,
@@ -239,25 +239,27 @@ export default function AdminsPage() {
         throw new Error("Failed to create user")
       }
 
-      // Add to pending_admin_users table
+      // Then add to pending_admin_users table
       const { error: pendingError } = await supabase
         .from("pending_admin_users")
-        .insert([
-          {
-            email: newAdminEmail,
-            user_id: authData.user.id,
-            created_by: user?.id
-          }
-        ])
+        .insert({
+          email: newAdminEmail,
+          user_id: authData.user.id,
+          created_by: user?.id
+        })
 
-      if (pendingError) throw pendingError
+      if (pendingError) {
+        // If adding to pending_admin_users fails, clean up the auth user
+        await supabase.auth.admin.deleteUser(authData.user.id)
+        throw pendingError
+      }
 
       // If successful, increment email count
       incrementEmailCount()
 
       toast({
         title: "Success",
-        description: "Admin invitation sent. User must confirm their email to complete setup.",
+        description: "Admin invitation sent. The user must confirm their email to complete setup.",
         duration: 4000,
       })
 
