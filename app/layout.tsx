@@ -10,8 +10,12 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
 
 export const metadata: Metadata = {
-  title: "Sri Sathya Sai Seva Organisation",
-  description: "Volunteer Management System",
+  title: "Sri Sathya Sai Seva Organisation - Volunteer Management System",
+  description: "Official volunteer management system for Sri Sathya Sai Seva Organisation. Love All Serve All.",
+  keywords: ["Sri Sathya Sai", "Seva", "Volunteer", "Management", "Service", "Organization"],
+  authors: [{ name: "Sri Sathya Sai Seva Organisation" }],
+  creator: "Sri Sathya Sai Seva Organisation",
+  publisher: "Sri Sathya Sai Seva Organisation",
   icons: {
     icon: [
       {
@@ -20,7 +24,9 @@ export const metadata: Metadata = {
         type: "image/jpg"
       }
     ]
-  }
+  },
+  viewport: "width=device-width, initial-scale=1",
+  themeColor: "#FF6B00"
 }
 
 export default function RootLayout({
