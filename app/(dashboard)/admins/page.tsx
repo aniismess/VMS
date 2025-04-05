@@ -1,15 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Shield, Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
+import { Loader2, Shield, Eye, EyeOff, Mail, Lock, AlertCircle, Clock, RefreshCw, X } from "lucide-react"
 import { motion } from "framer-motion"
 import { useAuth } from "@/contexts/auth-context"
 import { Label } from "@/components/ui/label"
+import { formatDistanceToNow } from "date-fns"
+import { createHash, randomBytes } from 'crypto'
 
 interface Admin {
   id: string
@@ -47,8 +49,20 @@ const incrementEmailCount = () => {
 // Add new interface for pending admins
 interface PendingAdmin {
   email: string
-  userId: string
+  created_by: string
+  created_by_email?: string
   created_at: string
+  expires_at: string
+  confirmation_token: string
+}
+
+// Add these utility functions
+const hashPassword = async (password: string): Promise<string> => {
+  return createHash('sha256').update(password).digest('hex')
+}
+
+const generateToken = (): string => {
+  return randomBytes(32).toString('hex')
 }
 
 export default function AdminsPage() {
@@ -59,6 +73,7 @@ export default function AdminsPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isAddingAdmin, setIsAddingAdmin] = useState(false)
+  const [isLoadingPending, setIsLoadingPending] = useState(true)
   const { toast } = useToast()
   const { user } = useAuth()
 
@@ -84,18 +99,24 @@ export default function AdminsPage() {
     }
   }
 
-  // Add function to load pending admins
   const fetchPendingAdmins = async () => {
     try {
       const { data, error } = await supabase
-        .from("pending_admin_users")
-        .select("*")
-        .order("created_at", { ascending: true })
+        .from('pending_admin_users')
+        .select('*')
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       setPendingAdmins(data || [])
     } catch (error) {
-      console.error("Error fetching pending admins:", error)
+      console.error('Error fetching pending admins:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch pending admin requests",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingPending(false)
     }
   }
 
@@ -120,13 +141,12 @@ export default function AdminsPage() {
       .subscribe()
 
     const pendingChannel = supabase
-      .channel("pending_admin_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "pending_admin_users",
+      .channel("pending-admin-changes")
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'pending_admin_users' 
         },
         () => {
           fetchPendingAdmins()
@@ -136,7 +156,7 @@ export default function AdminsPage() {
 
     return () => {
       supabase.removeChannel(adminChannel)
-      supabase.removeChannel(pendingChannel)
+      pendingChannel.unsubscribe()
     }
   }, [])
 
@@ -214,44 +234,44 @@ export default function AdminsPage() {
       if (pendingAdmin) {
         toast({
           title: "Error",
-          description: "This email is already pending admin confirmation.",
+          description: "This email is already pending confirmation.",
           variant: "destructive",
         })
         setIsAddingAdmin(false)
         return
       }
 
-      // First create the user in auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newAdminEmail,
-        password: newAdminPassword,
-        options: {
-          data: {
-            is_admin: true
-          },
-          emailRedirectTo: `${window.location.origin}/login`
-        }
-      })
+      // Generate confirmation token
+      const confirmationToken = generateToken()
 
-      if (authError) throw authError
-
-      if (!authData.user) {
-        throw new Error("Failed to create user")
-      }
-
-      // Then add to pending_admin_users table
+      // Add to pending_admin_users table
       const { error: pendingError } = await supabase
         .from("pending_admin_users")
         .insert({
           email: newAdminEmail,
-          user_id: authData.user.id,
-          created_by: user?.id
+          password: await hashPassword(newAdminPassword),
+          created_by: user?.id,
+          confirmation_token: confirmationToken,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         })
 
-      if (pendingError) {
-        // If adding to pending_admin_users fails, clean up the auth user
-        await supabase.auth.admin.deleteUser(authData.user.id)
-        throw pendingError
+      if (pendingError) throw pendingError
+
+      // Send confirmation email to current admin
+      const response = await fetch('/api/admin/send-confirmation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: newAdminEmail,
+          token: confirmationToken,
+          adminEmail: user?.email
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to send confirmation email')
       }
 
       // If successful, increment email count
@@ -259,7 +279,7 @@ export default function AdminsPage() {
 
       toast({
         title: "Success",
-        description: "Admin invitation sent. The user must confirm their email to complete setup.",
+        description: "Admin invitation sent. Please check your email for confirmation.",
         duration: 4000,
       })
 
@@ -330,6 +350,57 @@ export default function AdminsPage() {
         title: "Error",
         description: "Could not remove admin. Please try again.",
         duration: 4000,
+      })
+    }
+  }
+
+  const handleResendConfirmation = async (email: string) => {
+    try {
+      const response = await fetch('/api/admin/resend-confirmation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to resend confirmation')
+      }
+
+      toast({
+        title: "Success",
+        description: "Confirmation email has been resent.",
+      })
+    } catch (error) {
+      console.error('Error resending confirmation:', error)
+      toast({
+        title: "Error",
+        description: "Failed to resend confirmation email.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleCancelPending = async (email: string) => {
+    try {
+      const { error } = await supabase
+        .from('pending_admin_users')
+        .delete()
+        .eq('email', email)
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Admin invitation has been cancelled.",
+      })
+    } catch (error) {
+      console.error('Error cancelling invitation:', error)
+      toast({
+        title: "Error",
+        description: "Failed to cancel admin invitation.",
+        variant: "destructive",
       })
     }
   }
@@ -429,30 +500,74 @@ export default function AdminsPage() {
               </Button>
             </form>
 
-            {/* Add pending admins section */}
-            {pendingAdmins.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4">Pending Admin Confirmations</h3>
-                <div className="space-y-4">
-                  {pendingAdmins.map((pending) => (
-                    <div
-                      key={pending.userId}
-                      className="flex items-center justify-between p-4 border rounded-lg bg-muted/20"
-                    >
-                      <div>
-                        <p className="font-medium">{pending.email}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Invited: {new Date(pending.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Awaiting email confirmation
-                      </div>
+            <div className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-yellow-500" />
+                    Pending Admin Confirmations
+                  </CardTitle>
+                  <CardDescription>
+                    Admins waiting for email confirmation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingPending ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  ) : pendingAdmins.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      No pending admin confirmations
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {pendingAdmins.map((pending) => (
+                        <div
+                          key={pending.email}
+                          className="flex items-center justify-between p-4 rounded-lg border bg-muted/50"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="h-8 w-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                              <Clock className="h-4 w-4 text-yellow-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{pending.email}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Added by: {pending.created_by_email || 'Unknown'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-muted-foreground">
+                              Expires: {formatDistanceToNow(new Date(pending.expires_at))}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendConfirmation(pending.email)}
+                              className="text-yellow-500 hover:text-yellow-600"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                              <span className="sr-only">Resend confirmation</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelPending(pending.email)}
+                              className="text-red-500 hover:text-red-600"
+                            >
+                              <X className="h-4 w-4" />
+                              <span className="sr-only">Cancel invitation</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Existing admins section */}
             <div className="mt-8">
